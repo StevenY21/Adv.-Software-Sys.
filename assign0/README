@@ -1,0 +1,8 @@
+# Assignment 0
+Compiling: After getting into the folder, run make, it should compile everything. If it doesn't the Makefile commands should all work.
+
+Testing: I have 2 test files already compiled for use, test and test2.
+
+Note: Don't forget to run export LD_LIBRARY_PATH=/full/path/to/library/directory:${LD_LIBRARY_PATH} in order for the shared library to work
+
+Configuration: 4 core, 8 processor, 2.4 GHz (2.419 MHz), Intel Processor. The 2419 is apparently the one computed by Windows, but 2.40 is the official one.
