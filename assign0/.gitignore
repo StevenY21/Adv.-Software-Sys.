@@ -3,3 +3,7 @@
 *.a
 *.json
 .vscode
+getsections
+getsections_dl
+getsyms
+getsyms_dl
