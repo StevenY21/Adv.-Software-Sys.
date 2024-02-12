@@ -88,7 +88,6 @@ int main(int argc, char *argv[]) {
     bfd_init();
     bfd *abfd = get_sections(argv[1]);
     if (abfd == NULL) {
-        bfd_perror("invalid BFD, check if file is valid");
         return -1;
     }
     bfd_map_over_sections(abfd, write_sections, NULL);

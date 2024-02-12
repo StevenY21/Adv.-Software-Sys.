@@ -71,14 +71,12 @@ void write_symbols(asymbol **symbols, bfd *abfd) {
 int main(int argc, char *argv[]) {
     if (argc != 2) {
         write(2, "Wrong arg size", 14);
-        return 1;
+        return -1;
     }
     bfd_init();
     bfd *abfd = get_sections(argv[1]);
     asymbol **sym_table = get_symbols(argv[1]);
     if (abfd == NULL || sym_table == NULL) {
-        bfd_perror("invalid BFD, check if file is valid");
-
         return -1;
     }
     //printf("did I get here \n");

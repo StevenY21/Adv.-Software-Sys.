@@ -104,7 +104,6 @@ void flt_to_str(float num) {
     } else {
         strcat(s, "0");
     }
-    write(1, "RDTSC Avg(seconds): ", 21);
     write(1,s,100);
     write(1, "\n", 1);
 }
@@ -144,6 +143,7 @@ int main(int argc, char *argv[]) {
         } else {
             filename = argv[1];
         }
+        write(1, "RTLD_NOW Avg(seconds): ", 24);
         flag = RTLD_NOW;
     } else if(strcmp(argv[1],"RTLD_LAZY")==0 || strcmp(argv[2],"RTLD_LAZY")==0) {
         if (strcmp(argv[1],"RTLD_LAZY")==0){
@@ -151,6 +151,7 @@ int main(int argc, char *argv[]) {
         } else {
             filename = argv[1];
         }
+        write(1, "RTLD_LAZY Avg(seconds): ", 25);
         flag = RTLD_LAZY;
     } else {
         write(2, "Wrong inputs specified", 23);
@@ -187,7 +188,6 @@ int main(int argc, char *argv[]) {
     *(void**)(&objsec_get_sections) = dlsym(libObjdata, "get_sections");
     bfd *abfd = objsec_get_sections(filename);
     if (abfd == NULL) {
-        bfd_perror("invalid BFD, check if file is valid");
         return -1;
     }
     bfd_map_over_sections(abfd, write_sections, NULL);
