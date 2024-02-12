@@ -2,8 +2,11 @@
 *.so
 *.a
 *.json
-*.txt
+*out.txt
 getsections
 getsections_dl
 getsyms
 getsyms_dl
+getcopy
+getcopy_dl
+out-test

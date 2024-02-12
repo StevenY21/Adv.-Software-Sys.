@@ -64,8 +64,8 @@ void write_sections(bfd *abfd, asection *section, void *data) {
     //vma is unsigned long int 
     //size is unsigned long int 
     //filepos is long int 
-    write(1, "Idx:", 5);
-    write(1, dec[section->index], 1);
+    write(1, "\nIdx:", 6);
+    write(1, dec[section->index], 2);
     write(1, " Name:", 6);
     write(1, section->name, strlen(section->name));
     write(1, " Size:", 6);
@@ -90,6 +90,8 @@ int main(int argc, char *argv[]) {
     if (abfd == NULL) {
         return -1;
     }
+    write(1, "testing file: ", 15);
+    write(1, argv[1], strlen(argv[1]));
     bfd_map_over_sections(abfd, write_sections, NULL);
     return 0;
 }
