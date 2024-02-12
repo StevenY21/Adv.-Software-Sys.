@@ -2,7 +2,7 @@
 *.so
 *.a
 *.json
-.txt
+*.txt
 getsections
 getsections_dl
 getsyms
