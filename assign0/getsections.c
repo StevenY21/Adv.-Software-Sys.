@@ -1,6 +1,6 @@
 #include "/usr/include/bfd.h"
 #include <unistd.h>
-#include <stdio.h>
+//#include <stdio.h>
 #include <math.h>
 #include <string.h>
 #include <stdlib.h>
