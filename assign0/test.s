@@ -1,19 +1,16 @@
-.section .data
-    hello_msg:
-        .ascii "Hello, World!\n"    # Message to be printed
+        .intel_syntax noprefix  
+        .section .data
 
-.section .text
-    .globl _start
+x:      .quad 100  
+y:      .quad 200
 
-_start:
-    # Write the message to stdout
-    movl $4, %eax                   # syscall number for sys_write
-    movl $1, %ebx                   # file descriptor 1 (stdout)
-    movl $hello_msg, %ecx           # pointer to the message
-    movl $14, %edx                  # message length
-    int $0x80                       # Call kernel
+        .section .text  
+        .global _start
 
-    # Exit the program
-    movl $1, %eax                   # syscall number for sys_exit
-    xorl %ebx, %ebx                 # Exit code 0
-    int $0x80                       # Call kernel
+_start:  
+        mov rcx, QWORD PTR [x]  
+        mov rbx, QWORD PTR [y]  
+        add rcx, rbx  
+        mov rax, 60  
+        mov rdi, 0  
+        syscall  
