@@ -111,7 +111,7 @@ int main(int argc, char *argv[]) {
         dlclose(libObjdata);
         write(1, "test run (seconds): ", 21);
         // the diff is in cycles, and my laptop processor processes 2.4 billion cycles in a second
-        float run = (float)(diff)/ 2400000000.0;
+        float run = (float)(diff)/ 2419196000.0;
         flt_to_str(run);
         total = total + run;
     }
@@ -121,11 +121,11 @@ int main(int argc, char *argv[]) {
     RDTSC(finish);
     int diff = finish-start;
     write(1, "test run (seconds): ", 21);
-    float run = (float)(diff)/ 2400000000.0;
+    float run = (float)(diff)/ 2419196000.0;
     flt_to_str(run);
     total = total + run;
     //averaging out all 50 tests
-    float avg = (float) total / 50.0;
+    float avg = total / 50.0;
     write(1, "Overall Average (seconds): ", 28);
     flt_to_str(avg); // writes avg to stdout
     *(void**)(&objcopy_get_copy) = dlsym(libObjdata, "get_copy");

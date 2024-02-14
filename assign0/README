@@ -15,4 +15,4 @@ Using the programs:
 
 Don't forget to run export LD_LIBRARY_PATH=/full/path/to/library/directory:${LD_LIBRARY_PATH} in order for the libraries to work.
 
-Configuration: 4 core, 8 processor, 2.4 GHz, Intel Processor.
+Configuration: 4 core, 8 processor, 2419.196 MHz, Intel Processor.

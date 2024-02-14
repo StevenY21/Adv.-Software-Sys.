@@ -180,21 +180,23 @@ int main(int argc, char *argv[]) {
         int diff = finish-start;
         dlclose(libObjdata);
         write(1, "test run (seconds): ", 21);
-        float run = (float)(diff)/ 2400000000.0;
+        float run = (float)(diff)/ 2419196000.0;
         flt_to_str(run);
         total = total + run;
     }
+    // 50th run used for actually using the library
     RDTSC(start);
             libObjdata = dlopen("libobjdata.so", flag); 
     RDTSC(finish);
     int diff = finish-start;
     write(1, "test run (seconds): ", 21);
-    float run = (float)(diff)/ 2400000000.0;
+    float run = (diff)/ 2419196000.0;
     flt_to_str(run);
     total = total + run;
-    float avg = (float) total / 50.0;
+    float avg = total / 50.0;
     write(1, "Overall Average (seconds): ", 28);
     flt_to_str(avg);
+    //getting get_sections from the library
     *(void**)(&objsec_get_sections) = dlsym(libObjdata, "get_sections");
     bfd *abfd = objsec_get_sections(filename);
     if (abfd == NULL) {

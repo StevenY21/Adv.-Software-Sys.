@@ -1,6 +1,7 @@
 #include "/usr/include/bfd.h"
 #include <stdlib.h>
 asymbol **get_symbols(const char *filename) {
+    // based on the example provided in the bfd manual
     bfd_init();
     // getting and checking bfd
     bfd *abfd =  bfd_openr(filename, NULL);

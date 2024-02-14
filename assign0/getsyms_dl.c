@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
         write(2, "Wrong inputs specified", 23);
         return -1;
     }
-    write(1, "testing getsections_dl for file: ", 34);
+    write(1, "testing getsyms_dl for file: ", 30);
     write(1, filename, strlen(filename));
     write(1, "\n", 1); 
     write(1, "with flag: ", 12);
@@ -178,21 +178,23 @@ int main(int argc, char *argv[]) {
         int diff = finish-start;
         dlclose(libObjdata);
         write(1, "test run (seconds): ", 21);
-        float run = (float)(diff)/ 2400000000.0;
+        float run = (float)(diff)/ 2419196000.0;
         flt_to_str(run);
         total = total + run;
     }
+    // 50th run kept open for usage
     RDTSC(start);
             libObjdata = dlopen("libobjdata.so", flag); 
     RDTSC(finish);
     int diff = finish-start;
     write(1, "test run (seconds): ", 21);
-    float run = (float)(diff)/ 2400000000.0;
+    float run = (float)(diff)/ 2419196000.0;
     flt_to_str(run);
     total = total + run;
-    float avg = (float) total / 50.0;
+    float avg = total / 50.0;
     write(1, "Overall Average (seconds): ", 28);
     flt_to_str(avg);
+    // gets gets_sections and get_symbols from library
     *(void**)(&objsec_get_sections) = dlsym(libObjdata, "get_sections");
     *(void**)(&objsec_get_symbols) = dlsym(libObjdata, "get_symbols");
     bfd *abfd = objsec_get_sections(filename);

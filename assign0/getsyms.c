@@ -81,6 +81,7 @@ int main(int argc, char *argv[]) {
     write(1, argv[1], strlen(argv[1]));
     write(1, "\n", 1);
     bfd_init();
+    //acquiring the bfd and sym table
     bfd *abfd = get_sections(argv[1]);
     asymbol **sym_table = get_symbols(argv[1]);
     if (abfd == NULL || sym_table == NULL) {
