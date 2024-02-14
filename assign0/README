@@ -1,5 +1,5 @@
 # Assignment 0
-Compiling: After getting into the folder, run make, it should compile everything. If it doesn't the Makefile commands should all work.
+Compiling: After getting into the folder, run make, it should compile everything.
 
 Testing: I used the file called test. The stats have been manually produced with something like ./program_name insert_args >> stats.
 Note: Do $cat stats to see the stats without any weird symbols popping up. Also getcopy is not in stats as the main output is sent to text-output
