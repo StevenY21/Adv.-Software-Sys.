@@ -22,12 +22,12 @@ void findWord(FILE *fptr, const char *expression) {
 
     while ((fgets(str, 1000, fptr)) != NULL)
     {
-        // Find first occurrence of word in str
+        // Find first occurrence of expression in str
         inStr = strstr(str, expression);
 
         if (inStr != NULL)
         {
-            printf("found %s in %s\n",expression, str);
+            printf("found %s in: %s\n",expression, str);
         }
     }
 }
@@ -48,13 +48,25 @@ void findFiles(char *base, char* str, char* f, bool l, char* fullPath) {
             strcpy(path, base);
             strcat(path, "/");
             strcat(path, dp->d_name);
-            FILE *fptr = fopen(path, "r");
-            if (fptr != NULL){
-                findWord(fptr, str);
+            if (f != NULL) {
+                if (strstr(dp->d_name, f) != NULL) {
+                    FILE *fptr = fopen(path, "r");
+                    if (fptr != NULL){
+                        findWord(fptr, str);
+                        printf("%s/%s\n", base, dp->d_name);
+                    } else {
+                        printf("cannot fopen %s\n", path);
+                    }
+                }
             } else {
-                printf("cannot fopen %s\n", path);
+                FILE *fptr = fopen(path, "r");
+                if (fptr != NULL){
+                    findWord(fptr, str);
+                    printf("%s/%s\n", base, dp->d_name);
+                } else {
+                    printf("cannot fopen %s\n", path);
+                }
             }
-            printf("%s/%s\n", base, dp->d_name);
             findFiles(path, str, f, l, fullPath);
         }
     }
@@ -105,17 +117,23 @@ int main(int argc, char **argv) {
         default:
             abort ();
         }
-        printf ("p = %s, f = %s, l = %d, s = %s\n",
-          pFlag, fFlag, lFlag, sFlag);
-
+    printf ("p = %s, f = %s, l = %d, s = %s\n",
+        pFlag, fFlag, lFlag, sFlag);
     for (index = optind; index < argc; index++)
         printf ("Non-option argument %s\n", argv[index]);
-    if (fFlag != NULL && (fFlag != "c" || fFlag != "h" || fFlag != "S")) {
-        fprintf(stderr, "Invalid option arg for -f: %s", fFlag);
-        return -1;
-    } else {
-        findFiles(pFlag, sFlag, fFlag, lFlag, pFlag);
-    }
+    if (fFlag != NULL) {
+        if (strcmp(fFlag,"S") == 0) {
+            fFlag = ".s";
+        } else if (strcmp(fFlag,"c") == 0) {
+            fFlag =".c";
+        } else if (strcmp(fFlag,"h") == 0) {
+            fFlag = ".h";
+        } else {
+            fprintf(stderr, "Invalid option arg for -f: %s", fFlag);
+            return -1;
+        }
+    } 
+    findFiles(pFlag, sFlag, fFlag, lFlag, pFlag);
     return 0;
 
 
