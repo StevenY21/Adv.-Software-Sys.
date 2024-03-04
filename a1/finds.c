@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <dirent.h>
 #include <string.h>
 #include <unistd.h>
@@ -16,10 +17,9 @@
 // flag -f [file type] will set the program to look for files with the specific file type
 // flag -l will look for symbolics links, gotta print out symlink, the file it references, and the line in the file that has the string if string found
 // need to look into how tf to do that : https://stackoverflow.com/questions/1569402/following-symbolic-links-in-c 
-void findWord(FILE *fptr, const char *expression) {
+void findWord(FILE *fptr, const char *expression, char* path) {
     char str[1000];
     char *inStr;
-
     while ((fgets(str, 1000, fptr)) != NULL)
     {
         // Find first occurrence of expression in str
@@ -27,11 +27,11 @@ void findWord(FILE *fptr, const char *expression) {
 
         if (inStr != NULL)
         {
-            printf("found %s in: %s\n",expression, str);
+            printf("%s, %s\n",str, path);
         }
     }
 }
-void findFiles(char *base, char* str, char* f, bool l, char* fullPath) {
+void findFiles(char *base, char* str, char* f, bool l) {
     //printf("checking for %s in %s", str, base);
     char path[1000];
     struct dirent *dp;
@@ -48,26 +48,51 @@ void findFiles(char *base, char* str, char* f, bool l, char* fullPath) {
             strcpy(path, base);
             strcat(path, "/");
             strcat(path, dp->d_name);
-            if (f != NULL) {
-                if (strstr(dp->d_name, f) != NULL) {
-                    FILE *fptr = fopen(path, "r");
-                    if (fptr != NULL){
-                        findWord(fptr, str);
-                        printf("%s/%s\n", base, dp->d_name);
+            
+            struct stat statBuf;
+            int statChk = lstat(path, &statBuf); // using lstat to determine if it's a file or link: https://pubs.opengroup.org/onlinepubs/9699919799/functions/stat.html
+            char symBuf[1024]; //for getting the content of the symbolic link
+            ssize_t len;
+            if (S_ISLNK(statBuf.st_mode) && l == 1) {
+                if ((len = readlink(path, symBuf, sizeof(symBuf)-1)) != -1) { //based on https://pubs.opengroup.org/onlinepubs/9699919799/functions/readlink.html
+                    symBuf[len] = '\0';
+                    printf("found sym path %s\n", symBuf);
+                    if (f != NULL) {
+                        if (strstr(symBuf, f) != NULL) {
+                            FILE *fptr = fopen(symBuf, "r");
+                            if (fptr != NULL){
+                                findWord(fptr, str, symBuf);
+                                printf("going here for %s\n", symBuf); //test
+                                findFiles(symBuf, str, f, l);
+                            } else {
+                                printf("cannot open %s", symBuf);
+                            }
+                        }
                     } else {
-                        printf("cannot fopen %s\n", path);
+                        FILE *fptr = fopen(symBuf, "r");
+                        if (fptr != NULL){
+                            findWord(fptr, str, symBuf);
+                        } else {
+                            printf("cannot open %s", symBuf);
+                        }
                     }
                 }
             } else {
-                FILE *fptr = fopen(path, "r");
-                if (fptr != NULL){
-                    findWord(fptr, str);
-                    printf("%s/%s\n", base, dp->d_name);
+                if (f != NULL) {
+                    if (strstr(dp->d_name, f) != NULL) {
+                        FILE *fptr = fopen(path, "r");
+                        if (fptr != NULL){
+                            findWord(fptr, str, path);
+                        }
+                    }
                 } else {
-                    printf("cannot fopen %s\n", path);
+                    FILE *fptr = fopen(path, "r");
+                    if (fptr != NULL){
+                        findWord(fptr, str, path);
+                    }
                 }
+                findFiles(path, str, f, l);
             }
-            findFiles(path, str, f, l, fullPath);
         }
     }
 
@@ -133,7 +158,7 @@ int main(int argc, char **argv) {
             return -1;
         }
     } 
-    findFiles(pFlag, sFlag, fFlag, lFlag, pFlag);
+    findFiles(pFlag, sFlag, fFlag, lFlag);
     return 0;
 
 
