@@ -4,3 +4,4 @@ Random key words:
 std...
 .h 
 test test test
+getcopy

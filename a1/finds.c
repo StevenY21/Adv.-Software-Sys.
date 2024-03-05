@@ -48,36 +48,39 @@ void findFiles(char *base, char* str, char* f, bool l) {
             strcpy(path, base);
             strcat(path, "/");
             strcat(path, dp->d_name);
-            
+            //printf("found path: %s\n", path);
             struct stat statBuf;
             int statChk = lstat(path, &statBuf); // using lstat to determine if it's a file or link: https://pubs.opengroup.org/onlinepubs/9699919799/functions/stat.html
-            char symBuf[1024]; //for getting the content of the symbolic link
+            char actualPath[1024]; //for getting the content of the symbolic link
+            char * ptr;
             ssize_t len;
-            if (S_ISLNK(statBuf.st_mode) && l == 1) {
-                if ((len = readlink(path, symBuf, sizeof(symBuf)-1)) != -1) { //based on https://pubs.opengroup.org/onlinepubs/9699919799/functions/readlink.html
-                    symBuf[len] = '\0';
-                    printf("found sym path %s\n", symBuf);
+            if (S_ISLNK(statBuf.st_mode) && l == 1) { // if sym link and -l flag used
+            // https://pubs.opengroup.org/onlinepubs/009696799/functions/realpath.html
+                ptr = realpath(path, actualPath);
+                if (ptr != NULL) { //based on https://pubs.opengroup.org/onlinepubs/9699919799/functions/readlink.html
+                    //printf("found sym path %s\n", ptr);
                     if (f != NULL) {
-                        if (strstr(symBuf, f) != NULL) {
-                            FILE *fptr = fopen(symBuf, "r");
+                        if (strstr(ptr, f) != NULL) {
+                            FILE *fptr = fopen(ptr, "r");
                             if (fptr != NULL){
-                                findWord(fptr, str, symBuf);
-                                printf("going here for %s\n", symBuf); //test
-                                findFiles(symBuf, str, f, l);
+                                findWord(fptr, str, ptr);
+                                //printf("going here for %s\n", ptr); //test
+                                findFiles(ptr, str, f, l);
                             } else {
-                                printf("cannot open %s", symBuf);
+                                printf("cannot open %s", ptr);
                             }
                         }
                     } else {
-                        FILE *fptr = fopen(symBuf, "r");
+                        FILE *fptr = fopen(ptr, "r");
                         if (fptr != NULL){
-                            findWord(fptr, str, symBuf);
+                            findWord(fptr, str, ptr);
+                            findFiles(ptr, str, f, l);
                         } else {
-                            printf("cannot open %s", symBuf);
+                            printf("cannot open %s", ptr);
                         }
                     }
                 }
-            } else {
+            } else if(S_ISREG(statBuf.st_mode)) { // if just a regular file
                 if (f != NULL) {
                     if (strstr(dp->d_name, f) != NULL) {
                         FILE *fptr = fopen(path, "r");
