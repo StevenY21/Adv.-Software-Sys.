@@ -9,14 +9,7 @@
 #include <ctype.h>
 #include <bits/getopt_core.h>
 //assignment link: https://www.cs.bu.edu/fac/richwest/cs410_spring_2024/assignments/a1/a1.html 
-// goal
-// arguments taken in will be the directory that needs to be traversed, option flags, and the string to look for, and possibly a wildcard unless they want it in the string
-// traverse directory: https://codeforwin.org/c-programming/c-program-to-list-all-files-in-a-directory-recursively
-// find occurence of word in file https://codeforwin.org/c-programming/c-program-find-occurrence-of-a-word-in-file
-// need to look into how the hell to build my own regex
-// flag -f [file type] will set the program to look for files with the specific file type
-// flag -l will look for symbolics links, gotta print out symlink, the file it references, and the line in the file that has the string if string found
-// need to look into how tf to do that : https://stackoverflow.com/questions/1569402/following-symbolic-links-in-c 
+// goals still need done: REGEX ONLY NOW
 void findWord(FILE *fptr, const char *expression, char* path) {
     char str[1000];
     char *inStr;
@@ -38,6 +31,7 @@ void findFiles(char *base, char* str, char* f, bool l) {
     DIR *dir = opendir(base);
     // Unable to open directory
     if (dir == NULL) {
+        //printf("invalid direct %s\n", base);
         return;
     }
     while ((dp = readdir(dir)) != NULL)
@@ -57,7 +51,7 @@ void findFiles(char *base, char* str, char* f, bool l) {
             if (S_ISLNK(statBuf.st_mode) && l == 1) { // if sym link and -l flag used
             // https://pubs.opengroup.org/onlinepubs/009696799/functions/realpath.html
                 ptr = realpath(path, actualPath);
-                if (ptr != NULL) { //based on https://pubs.opengroup.org/onlinepubs/9699919799/functions/readlink.html
+                if (ptr != NULL) { 
                     //printf("found sym path %s\n", ptr);
                     if (f != NULL) {
                         if (strstr(ptr, f) != NULL) {
@@ -94,6 +88,9 @@ void findFiles(char *base, char* str, char* f, bool l) {
                         findWord(fptr, str, path);
                     }
                 }
+                findFiles(path, str, f, l);
+            } else {
+                //might be a directory
                 findFiles(path, str, f, l);
             }
         }
