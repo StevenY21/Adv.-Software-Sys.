@@ -10,8 +10,8 @@
 //assignment link: https://www.cs.bu.edu/fac/richwest/cs410_spring_2024/assignments/a1/a1.html 
 // goals still need done: REGEX ONLY NOW
 // using this to test regex: https://regex101.com/ 
-int passCtrlChr(char *str, char ctrlChr, char beforeCtrl, char afterCtrl, int startIdx) {
-    //printf("ctrl op %c %s %c %c\n", ctrlChr, str, beforeCtrl, afterCtrl);
+int passCtrlChr(char *str, char ctrlChr, char beforeCtrl, char afterCtrl, int startIdx, char*expression, int afterCtrlIdx) {
+    printf("ctrl op %c %s %c %c\n", ctrlChr, str, beforeCtrl, afterCtrl);
     int trav = startIdx;
     if (ctrlChr == '.') { 
         if (beforeCtrl == NULL) { 
@@ -60,7 +60,6 @@ int passCtrlChr(char *str, char ctrlChr, char beforeCtrl, char afterCtrl, int st
             int beforeCtrls = 0;
             while(str[trav] != '\0' && str[trav] !=  afterCtrl) {
                 if (str[trav] != beforeCtrl) {
-                    printf("%s", "stopped here");
                     return -1;
                 } else {
                     if (str[trav] == beforeCtrl) {
@@ -68,7 +67,6 @@ int passCtrlChr(char *str, char ctrlChr, char beforeCtrl, char afterCtrl, int st
                     }
                 }
                 trav++;
-
             }
             if (beforeCtrls > 1) {
                     return -1;
@@ -77,27 +75,60 @@ int passCtrlChr(char *str, char ctrlChr, char beforeCtrl, char afterCtrl, int st
             }
 
         }
-    } else if (ctrlChr == "*") {
-        if (beforeCtrl == NULL) {
+    } else if (ctrlChr == '*') { // 0 or many instances of the char to the left, so long as the one the right is there
+        if (beforeCtrl == NULL|| (isalnum(beforeCtrl) == 0 && beforeCtrl != '.')) { //cannot have nothing or some symbols at all before the control char
             fprintf("stderr", "invalid use of control character");
             exit(-1);
-        } else if (afterCtrl == '.' ||  afterCtrl == '?') {
+        } else if (afterCtrl == '.' ||  afterCtrl == '?') { // [char]*. or ? works fine
             return trav;
-        } else if (afterCtrl == '*'){
+        } else if (afterCtrl == '*'){ //cannot do **
             fprintf("stderr", "invalid use of control character");
             exit(-1);            
         } else {
             while(str[trav] != '\0') {
-                if (str[trav] == afterCtrl) {
-                    return trav+1;
+                //printf("%c\n", str[trav]);
+                if (str[trav] == afterCtrl)  {
+                    return trav+3;
+                } else if (str[trav] != beforeCtrl){
+                    return -1;
                 }
                 trav++;
+            }
+        }
+    } else if (ctrlChr == '('){
+        int expTrav = afterCtrlIdx; //for traversing all the stuff inside the ()
+        if (beforeCtrl == NULL) { //nothing before parenthesis
+            while(str[trav] != '\0') {
+                //printf("%c\n", str[trav]);
+                if(expression[expTrav] == ')') {
+                    return trav+3;
+                } else if (expression[expTrav] != str[trav]) { // if contents in regexp () dont match the given string portion
+                    printf("%s %c %c\n", "failed here", expression[expTrav], str[trav]);
+                    return -1;
+                }
+                expTrav++;
+                trav++;
+            }
+        } else {
+            if( str[trav] != beforeCtrl){
+                return -1;
+            } else {
+                while(str[trav] != '\0') {
+                printf("%c\n", str[trav]);
+                    if(expression[expTrav] == ')') {
+                        return trav+3;
+                    } else if (expression[expTrav] != str[trav]) { // if contents in regexp () dont match the given string portion
+                        return -1;
+                    }
+                    expTrav++;
+                    trav++;
+                }
             }
         }
     }
     return -1;
 }
-int findRegExp(FILE *fptr, char *expression, char* path) {
+int findRegExp(FILE *fptr, char *expression, char* path) { //similar concept to find exp, except now manually traversing the strings
     char str[1000];
     int foundExp = 0;
      while ((fgets(str, 1000, fptr)) != NULL)
@@ -111,18 +142,30 @@ int findRegExp(FILE *fptr, char *expression, char* path) {
             if (isalnum(expression[expIdx]) ==0) { //current index a 
                 if (expIdx == 0) {// first value in exp a control character
                     //printf("got here0 %c\n", expression[expIdx+1]);
-                    passedStep = passCtrlChr(str, expression[expIdx], NULL, expression[expIdx+1], 0);\
-                    incExp += 2;
+                    passedStep = passCtrlChr(str, expression[expIdx], NULL, expression[expIdx+1], 0, expression, expIdx+1);\
+                    if (isalnum(expression[expIdx+2]) == 0 && expression[expIdx+2] != ')') {// that means the rightside of this current ctrl char will be needed again
+                        incExp += 2;
+                    } else {
+                        incExp += 3;
+                    }
                 } else {
                     //printf("got here1 %c", expression[expIdx]);
-                    passedStep = passCtrlChr(str, expression[expIdx], expression[expIdx-1], expression[expIdx+1], strIdx);
-                    incExp += 3;
+                    passedStep = passCtrlChr(str, expression[expIdx], expression[expIdx-1], expression[expIdx+1], strIdx, expression, expIdx+1);
+                    if (isalnum(expression[expIdx+2]) == 0 && expression[expIdx+2] != ')') {
+                        incExp += 2;
+                    } else {
+                        incExp += 3;
+                    }
                 }        
             } else if (isalnum(expression[expIdx+1]) == 0 && expression[expIdx+1] != '\0'){
                 //printf("got here3 %c %s %d %d\n", expression[expIdx+1], expression, expIdx+1, strIdx);
-                passedStep = passCtrlChr(str, expression[expIdx+1], expression[expIdx], expression[expIdx+2], strIdx);
+                passedStep = passCtrlChr(str, expression[expIdx+1], expression[expIdx], expression[expIdx+2], strIdx, expression, expIdx+2);
                 //printf("passed? %d\n", passedStep);
-                incExp += 3;
+                if (isalnum(expression[expIdx+2]) == 0) {
+                    incExp += 2;
+                } else {
+                    incExp += 3;
+                }
             } else { // regular char comparison
                 //printf("%s %c %c %d", "\ntesting regular char comp",expression[expIdx], str[strIdx], strIdx);
                 if(expression[expIdx] == str[strIdx]){
@@ -137,7 +180,7 @@ int findRegExp(FILE *fptr, char *expression, char* path) {
                 strIdx ++;
             } else {
                 strIdx = passedStep;
-                expIdx += incExp;
+                expIdx += incExp;  
             }
         }
         if (str[strIdx] == '\0' && expression[expIdx] == '\0') {
