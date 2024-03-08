@@ -6,3 +6,5 @@ std...
 test test test
 getcopy
 stdio
+io 
+stio

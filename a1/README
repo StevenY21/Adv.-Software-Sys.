@@ -1,0 +1,4 @@
+Assignment 1:
+Only has the finds program. The finds program can, as of right now, only support the '.', '?', and '*' wildcards inside the string expression. 
+I am not certain if my wildcard implementation covers all possible combinations. 
+The structure of the cmd is ./finds -p pathname [-f c|h|S] [-l] -s s.

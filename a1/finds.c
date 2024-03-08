@@ -9,50 +9,91 @@
 #include <bits/getopt_core.h>
 //assignment link: https://www.cs.bu.edu/fac/richwest/cs410_spring_2024/assignments/a1/a1.html 
 // goals still need done: REGEX ONLY NOW
+// using this to test regex: https://regex101.com/ 
 int passCtrlChr(char *str, char ctrlChr, char beforeCtrl, char afterCtrl, int startIdx) {
-    //printf("ctrl op %c %s\n", ctrlChr, str);
+    //printf("ctrl op %c %s %c %c\n", ctrlChr, str, beforeCtrl, afterCtrl);
     int trav = startIdx;
-    if (ctrlChr == '.') {
+    if (ctrlChr == '.') { 
         if (beforeCtrl == NULL) { 
             if (afterCtrl == '\0') {
                 return startIdx;
-            } else if (afterCtrl == '.' || afterCtrl == '*' || afterCtrl == '?') {
+            } else if (afterCtrl == '.' || afterCtrl == '*' || afterCtrl == '?') { //regex auto works for any string when . is next to the other specified chars
                 //printf("%s", "get here2");
                 return trav;
             } else {
-                while(str[trav]  != '\0') {
-                if (str[trav+2] == afterCtrl) {
+                if (str[trav+2] == afterCtrl) { //checks if characters starting from startIdx to startIdx +2 gets something like a.b
                     return trav+3;
-                }
-                trav++;
+                } else {
+                    return -1;
                 }
             }
         } else if( afterCtrl == "\0") { // ex: "b."
         //printf("%s", "got here3");
-           while(str[trav]  != '\0') {
-                if (str[trav] == beforeCtrl && str[trav+1] != '\0') {
-                    return trav+2;
-                }
-                trav++;
-            }            
+            if (str[trav] == beforeCtrl) {
+                return trav+2;
+            } else {
+                return -1;
+            }
         } else if (afterCtrl == '*' || afterCtrl == '?' ) { //.* and .? makes whole string valid
             //printf("%s", "got here4");
             return trav;
-        } else if (beforeCtrl == '.' || afterCtrl == '.' ){
+        } else if (beforeCtrl == '.' || afterCtrl == '.' ){ //.. also works according to regex website for any string
             return trav;
         } else { // for things like a.b
             //printf("%s", "got here5");
-            while(str[trav+2] != '\0'){
-                if (str[trav] == beforeCtrl && str[trav+2] == afterCtrl) {
-                    return trav+3;
+            if (str[trav] == beforeCtrl  && str[trav+2] == afterCtrl) {
+                return trav+3;
+            } else {
+                return -1;
+            }
+        }
+    } else if (ctrlChr == '?') { // the 0 or 1 instance of char before ?
+        if (beforeCtrl == NULL || (isalnum(beforeCtrl) == 0 && beforeCtrl != '.')) { //cannot have nothing or symbols before ?
+            fprintf("stderr", "invalid use of control character");
+            exit(-1);
+        } else if ((afterCtrl == '.' ||  afterCtrl == '?')) { // so long as some valid char before
+            return trav;
+        } else if (afterCtrl == '*'){ // ?* will break
+            fprintf("stderr", "invalid use of control character");
+            exit(-1);            
+        } else {
+            int beforeCtrls = 0;
+            while(str[trav] != '\0' && str[trav] !=  afterCtrl) {
+                if (str[trav] != beforeCtrl) {
+                    printf("%s", "stopped here");
+                    return -1;
+                } else {
+                    if (str[trav] == beforeCtrl) {
+                        beforeCtrls++;
+                    }
+                }
+                trav++;
+
+            }
+            if (beforeCtrls > 1) {
+                    return -1;
+            } else {
+                return trav+1;
+            }
+
+        }
+    } else if (ctrlChr == "*") {
+        if (beforeCtrl == NULL) {
+            fprintf("stderr", "invalid use of control character");
+            exit(-1);
+        } else if (afterCtrl == '.' ||  afterCtrl == '?') {
+            return trav;
+        } else if (afterCtrl == '*'){
+            fprintf("stderr", "invalid use of control character");
+            exit(-1);            
+        } else {
+            while(str[trav] != '\0') {
+                if (str[trav] == afterCtrl) {
+                    return trav+1;
                 }
                 trav++;
             }
         }
-    } else if (ctrlChr == "?") {
-        return 1;
-    } else if (ctrlChr == "*") {
-        return 1;
     }
     return -1;
 }
@@ -77,13 +118,13 @@ int findRegExp(FILE *fptr, char *expression, char* path) {
                     passedStep = passCtrlChr(str, expression[expIdx], expression[expIdx-1], expression[expIdx+1], strIdx);
                     incExp += 3;
                 }        
-            } else if (isalnum(expression[expIdx+1]) == 0){
-                //printf("got here3 %c\n", expression[expIdx+1]);
+            } else if (isalnum(expression[expIdx+1]) == 0 && expression[expIdx+1] != '\0'){
+                //printf("got here3 %c %s %d %d\n", expression[expIdx+1], expression, expIdx+1, strIdx);
                 passedStep = passCtrlChr(str, expression[expIdx+1], expression[expIdx], expression[expIdx+2], strIdx);
                 //printf("passed? %d\n", passedStep);
                 incExp += 3;
             } else { // regular char comparison
-                //printf("%s %c %c", "\ntesting regular char comp",expression[expIdx], str[strIdx]);
+                //printf("%s %c %c %d", "\ntesting regular char comp",expression[expIdx], str[strIdx], strIdx);
                 if(expression[expIdx] == str[strIdx]){
                     passedStep = strIdx + 1;
                     incExp += 1;
@@ -104,7 +145,7 @@ int findRegExp(FILE *fptr, char *expression, char* path) {
             printf("%s :found in %s\n",str, path);
         } else if (str[strIdx] != '\0' && expression[expIdx] == '\0') {
             foundExp++;
-            printf("%s",str);
+            printf("%s :found in %s\n",str, path);
         }
     }
     if (foundExp >= 1) {
