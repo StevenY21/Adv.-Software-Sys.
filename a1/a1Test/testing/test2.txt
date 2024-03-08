@@ -1,2 +1,3 @@
 testing if the link is working\
-std std
+std std a1test/testing
+a b

@@ -1,6 +1,7 @@
 HI 
 this is a test folder
 Random key words:
-std...
+bstd in a1test/testing.txt
 .h 
 test test test
+stdio

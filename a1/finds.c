@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
@@ -10,28 +9,174 @@
 #include <bits/getopt_core.h>
 //assignment link: https://www.cs.bu.edu/fac/richwest/cs410_spring_2024/assignments/a1/a1.html 
 // goals still need done: REGEX ONLY NOW
-void findWord(FILE *fptr, const char *expression, char* path) {
+int passCtrlChr(char *str, char ctrlChr, char beforeCtrl, char afterCtrl, int startIdx) {
+    //printf("ctrl op %c %s\n", ctrlChr, str);
+    int trav = startIdx;
+    if (ctrlChr == '.') {
+        if (beforeCtrl == NULL) { 
+            if (afterCtrl == '\0') {
+                return startIdx;
+            } else if (afterCtrl == '.' || afterCtrl == '*' || afterCtrl == '?') {
+                //printf("%s", "get here2");
+                return trav;
+            } else {
+                while(str[trav]  != '\0') {
+                if (str[trav+2] == afterCtrl) {
+                    return trav+3;
+                }
+                trav++;
+                }
+            }
+        } else if( afterCtrl == "\0") { // ex: "b."
+        //printf("%s", "got here3");
+           while(str[trav]  != '\0') {
+                if (str[trav] == beforeCtrl && str[trav+1] != '\0') {
+                    return trav+2;
+                }
+                trav++;
+            }            
+        } else if (afterCtrl == '*' || afterCtrl == '?' ) { //.* and .? makes whole string valid
+            //printf("%s", "got here4");
+            return trav;
+        } else if (beforeCtrl == '.' || afterCtrl == '.' ){
+            return trav;
+        } else { // for things like a.b
+            //printf("%s", "got here5");
+            while(str[trav+2] != '\0'){
+                if (str[trav] == beforeCtrl && str[trav+2] == afterCtrl) {
+                    return trav+3;
+                }
+                trav++;
+            }
+        }
+    } else if (ctrlChr == "?") {
+        return 1;
+    } else if (ctrlChr == "*") {
+        return 1;
+    }
+    return -1;
+}
+int findRegExp(FILE *fptr, char *expression, char* path) {
+    char str[1000];
+    int foundExp = 0;
+     while ((fgets(str, 1000, fptr)) != NULL)
+    {
+        size_t strIdx = 0;
+        size_t expIdx = 0;
+        while(str[strIdx] != '\0' && expression[expIdx] != '\0') {
+            //printf("expression char rn %c\n", expression[expIdx]);
+            int passedStep = -1;
+            int incExp = 0;
+            if (isalnum(expression[expIdx]) ==0) { //current index a 
+                if (expIdx == 0) {// first value in exp a control character
+                    //printf("got here0 %c\n", expression[expIdx+1]);
+                    passedStep = passCtrlChr(str, expression[expIdx], NULL, expression[expIdx+1], 0);\
+                    incExp += 2;
+                } else {
+                    //printf("got here1 %c", expression[expIdx]);
+                    passedStep = passCtrlChr(str, expression[expIdx], expression[expIdx-1], expression[expIdx+1], strIdx);
+                    incExp += 3;
+                }        
+            } else if (isalnum(expression[expIdx+1]) == 0){
+                //printf("got here3 %c\n", expression[expIdx+1]);
+                passedStep = passCtrlChr(str, expression[expIdx+1], expression[expIdx], expression[expIdx+2], strIdx);
+                //printf("passed? %d\n", passedStep);
+                incExp += 3;
+            } else { // regular char comparison
+                //printf("%s %c %c", "\ntesting regular char comp",expression[expIdx], str[strIdx]);
+                if(expression[expIdx] == str[strIdx]){
+                    passedStep = strIdx + 1;
+                    incExp += 1;
+                }
+            }
+            // after testing the expressions
+            if (passedStep == -1) {
+                //printf("%s", "\ntest failed");
+                expIdx = 0;
+                strIdx ++;
+            } else {
+                strIdx = passedStep;
+                expIdx += incExp;
+            }
+        }
+        if (str[strIdx] == '\0' && expression[expIdx] == '\0') {
+            foundExp++;
+            printf("%s :found in %s\n",str, path);
+        } else if (str[strIdx] != '\0' && expression[expIdx] == '\0') {
+            foundExp++;
+            printf("%s",str);
+        }
+    }
+    if (foundExp >= 1) {
+        return 1;
+    } else {
+        return 0;
+    }
+
+}
+int findExp(FILE *fptr, char *expression, char* path) {
     char str[1000];
     char *inStr;
+    int foundStr = 0;
     while ((fgets(str, 1000, fptr)) != NULL)
     {
         // Find first occurrence of expression in str
         inStr = strstr(str, expression);
-
         if (inStr != NULL)
-        {
-            printf("%s, %s\n",str, path);
+        {   
+            foundStr++;
+            printf("%s :found in %s\n",str, path);
+        }
+    }
+    if (foundStr >= 1) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+int checkFile(char *path, char* f, char* exp, int hasCtrl) {
+    int foundExp = 0; // checking if expression found in file
+    if (f != NULL) {
+        if (strstr(path, f) != NULL) {
+            FILE *fptr = fopen(path, "r");
+            if (fptr != NULL){
+                if (hasCtrl == 1) {
+                    foundExp = findRegExp(fptr, exp, path);
+                } else {
+                    foundExp = findExp(fptr, exp, path);
+                }
+                //printf("going here for %s\n", ptr); //test
+                return foundExp;
+            } else {
+                fprintf(stderr, "cannot open %s", path);
+                return -1;
+            }
+        }
+    } else {
+        FILE *fptr = fopen(path, "r");
+        if (fptr != NULL){
+            if (hasCtrl == 1) {
+                foundExp = findRegExp(fptr, exp, path);
+            } else {
+                foundExp = findExp(fptr, exp, path);
+            }
+            return foundExp;
+        } else {
+            fprintf(stderr, "cannot open %s", path);
+            return -1;
         }
     }
 }
-void findFiles(char *base, char* str, char* f, bool l) {
+void findFiles(char *base, char* symLink, char* str, char* f, int l, int hasCtrl) {
     //printf("checking for %s in %s", str, base);
     char path[1000];
     struct dirent *dp;
     DIR *dir = opendir(base);
-    // Unable to open directory
+    int foundExp = 0; // checking if expression found in file
+    // Unable to open the directory
     if (dir == NULL) {
         //printf("invalid direct %s\n", base);
+        //fprintf(stderr, "invalid direct %s\n", base);
         return;
     }
     while ((dp = readdir(dir)) != NULL)
@@ -45,53 +190,39 @@ void findFiles(char *base, char* str, char* f, bool l) {
             //printf("found path: %s\n", path);
             struct stat statBuf;
             int statChk = lstat(path, &statBuf); // using lstat to determine if it's a file or link: https://pubs.opengroup.org/onlinepubs/9699919799/functions/stat.html
-            char actualPath[1024]; //for getting the content of the symbolic link
-            char * ptr;
-            ssize_t len;
+            if (statChk == -1) {
+                return;
+            }
             if (S_ISLNK(statBuf.st_mode) && l == 1) { // if sym link and -l flag used
             // https://pubs.opengroup.org/onlinepubs/009696799/functions/realpath.html
+                char actualPath[1024]; //for getting the content of the symbolic link
+                char * ptr; 
                 ptr = realpath(path, actualPath);
                 if (ptr != NULL) { 
                     //printf("found sym path %s\n", ptr);
-                    if (f != NULL) {
-                        if (strstr(ptr, f) != NULL) {
-                            FILE *fptr = fopen(ptr, "r");
-                            if (fptr != NULL){
-                                findWord(fptr, str, ptr);
-                                //printf("going here for %s\n", ptr); //test
-                                findFiles(ptr, str, f, l);
-                            } else {
-                                printf("cannot open %s", ptr);
-                            }
-                        }
-                    } else {
-                        FILE *fptr = fopen(ptr, "r");
-                        if (fptr != NULL){
-                            findWord(fptr, str, ptr);
-                            findFiles(ptr, str, f, l);
-                        } else {
-                            printf("cannot open %s", ptr);
-                        }
+                    char *tempSym = path;
+                    foundExp = checkFile(ptr, f, str, hasCtrl);
+                    if (foundExp == 1) {
+                        printf("symbolic link file: %s\n", tempSym);
+                    } else if (foundExp == -1) {
+                        return;
                     }
+                    findFiles(ptr, tempSym, str, f, l, hasCtrl);
+                } else {
+                    fprintf(stderr, "cannot open %s", ptr);
+                    return;
                 }
             } else if(S_ISREG(statBuf.st_mode)) { // if just a regular file
-                if (f != NULL) {
-                    if (strstr(dp->d_name, f) != NULL) {
-                        FILE *fptr = fopen(path, "r");
-                        if (fptr != NULL){
-                            findWord(fptr, str, path);
-                        }
-                    }
-                } else {
-                    FILE *fptr = fopen(path, "r");
-                    if (fptr != NULL){
-                        findWord(fptr, str, path);
-                    }
+                foundExp = checkFile(path, f, str, hasCtrl);
+                if (foundExp == 1 && symLink != NULL) {
+                    printf("symbolic link file: %s\n", symLink);
+                } else if (foundExp == -1) {
+                    return;
                 }
-                findFiles(path, str, f, l);
+                findFiles(path, symLink, str, f, l, hasCtrl);
             } else {
                 //might be a directory
-                findFiles(path, str, f, l);
+                findFiles(path, symLink, str, f, l, hasCtrl);
             }
         }
     }
@@ -102,7 +233,7 @@ int main(int argc, char **argv) {
     // based on the manual on getopt: https://www.gnu.org/software/libc/manual/html_node/Example-of-Getopt.html 
     char* pFlag =NULL;
     char* fFlag = NULL;
-    bool lFlag = false;
+    int lFlag = 0;
     char *sFlag = NULL;
     int index;
     int c;
@@ -120,7 +251,7 @@ int main(int argc, char **argv) {
             }
             break;
         case 'l':
-            lFlag = true;
+            lFlag = 1;
             break;
         case 's':
             if (optarg != NULL) {
@@ -144,8 +275,9 @@ int main(int argc, char **argv) {
         }
     printf ("p = %s, f = %s, l = %d, s = %s\n",
         pFlag, fFlag, lFlag, sFlag);
-    for (index = optind; index < argc; index++)
-        printf ("Non-option argument %s\n", argv[index]);
+    for (index = optind; index < argc; index++) {
+        fprintf (stderr, "Non-option argument %s\n", argv[index]);
+    }
     if (fFlag != NULL) {
         if (strcmp(fFlag,"S") == 0) {
             fFlag = ".s";
@@ -154,11 +286,26 @@ int main(int argc, char **argv) {
         } else if (strcmp(fFlag,"h") == 0) {
             fFlag = ".h";
         } else {
-            fprintf(stderr, "Invalid option arg for -f: %s", fFlag);
+            fprintf(stderr, "Invalid option arg for -f: %s\n", fFlag);
             return -1;
         }
     } 
-    findFiles(pFlag, sFlag, fFlag, lFlag);
+    char *p = sFlag;
+    int hasCtrl = 0; // to check if control characters found
+    while (*p != '\0') {
+        int checkAlNum = isalnum(*p);
+        if (checkAlNum == 0){
+            if (*p == '?' || *p == '*' || *p == '(' || *p == ')' || *p == '.') {
+                //printf("found control character found %c\n", *p);
+                hasCtrl = 1;
+            } else {
+                fprintf(stderr, "Invalid expression string: %s\n", sFlag);
+                return -1;
+            }
+        }
+        p++;
+    }
+    findFiles(pFlag, NULL, sFlag, fFlag, lFlag, hasCtrl);
     return 0;
 
 
