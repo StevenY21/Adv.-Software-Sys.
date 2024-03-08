@@ -11,7 +11,7 @@
 // goals still need done: REGEX ONLY NOW
 // using this to test regex: https://regex101.com/ 
 int passCtrlChr(char *str, char ctrlChr, char beforeCtrl, char afterCtrl, int startIdx, char*expression, int afterCtrlIdx) {
-    printf("ctrl op %c %s %c %c\n", ctrlChr, str, beforeCtrl, afterCtrl);
+    //printf("ctrl op %c %s %c %c\n", ctrlChr, str, beforeCtrl, afterCtrl);
     int trav = startIdx;
     if (ctrlChr == '.') { 
         if (beforeCtrl == NULL) { 
@@ -95,7 +95,7 @@ int passCtrlChr(char *str, char ctrlChr, char beforeCtrl, char afterCtrl, int st
                 trav++;
             }
         }
-    } else if (ctrlChr == '('){
+    } else if (ctrlChr == '('){ //WIP
         int expTrav = afterCtrlIdx; //for traversing all the stuff inside the ()
         if (beforeCtrl == NULL) { //nothing before parenthesis
             while(str[trav] != '\0') {
@@ -103,7 +103,7 @@ int passCtrlChr(char *str, char ctrlChr, char beforeCtrl, char afterCtrl, int st
                 if(expression[expTrav] == ')') {
                     return trav+3;
                 } else if (expression[expTrav] != str[trav]) { // if contents in regexp () dont match the given string portion
-                    printf("%s %c %c\n", "failed here", expression[expTrav], str[trav]);
+                    //printf("%s %c %c\n", "failed here", expression[expTrav], str[trav]);
                     return -1;
                 }
                 expTrav++;
@@ -114,7 +114,7 @@ int passCtrlChr(char *str, char ctrlChr, char beforeCtrl, char afterCtrl, int st
                 return -1;
             } else {
                 while(str[trav] != '\0') {
-                printf("%c\n", str[trav]);
+                //printf("%c\n", str[trav]);
                     if(expression[expTrav] == ')') {
                         return trav+3;
                     } else if (expression[expTrav] != str[trav]) { // if contents in regexp () dont match the given string portion
@@ -135,11 +135,11 @@ int findRegExp(FILE *fptr, char *expression, char* path) { //similar concept to 
     {
         size_t strIdx = 0;
         size_t expIdx = 0;
-        while(str[strIdx] != '\0' && expression[expIdx] != '\0') {
+        while(str[strIdx] != '\0' && expression[expIdx] != '\0') { // traverses the string and regexp
             //printf("expression char rn %c\n", expression[expIdx]);
             int passedStep = -1;
             int incExp = 0;
-            if (isalnum(expression[expIdx]) ==0) { //current index a 
+            if (isalnum(expression[expIdx]) ==0) { //if current regex chr is a ctrl char
                 if (expIdx == 0) {// first value in exp a control character
                     //printf("got here0 %c\n", expression[expIdx+1]);
                     passedStep = passCtrlChr(str, expression[expIdx], NULL, expression[expIdx+1], 0, expression, expIdx+1);\
@@ -148,7 +148,7 @@ int findRegExp(FILE *fptr, char *expression, char* path) { //similar concept to 
                     } else {
                         incExp += 3;
                     }
-                } else {
+                } else { // can access before and after values of ctrl char
                     //printf("got here1 %c", expression[expIdx]);
                     passedStep = passCtrlChr(str, expression[expIdx], expression[expIdx-1], expression[expIdx+1], strIdx, expression, expIdx+1);
                     if (isalnum(expression[expIdx+2]) == 0 && expression[expIdx+2] != ')') {
@@ -157,7 +157,7 @@ int findRegExp(FILE *fptr, char *expression, char* path) { //similar concept to 
                         incExp += 3;
                     }
                 }        
-            } else if (isalnum(expression[expIdx+1]) == 0 && expression[expIdx+1] != '\0'){
+            } else if (isalnum(expression[expIdx+1]) == 0 && expression[expIdx+1] != '\0'){ //seeing if next value is ctrl char, meaning current regexp value is the before char for the ctrl
                 //printf("got here3 %c %s %d %d\n", expression[expIdx+1], expression, expIdx+1, strIdx);
                 passedStep = passCtrlChr(str, expression[expIdx+1], expression[expIdx], expression[expIdx+2], strIdx, expression, expIdx+2);
                 //printf("passed? %d\n", passedStep);
@@ -220,11 +220,11 @@ int findExp(FILE *fptr, char *expression, char* path) {
 }
 int checkFile(char *path, char* f, char* exp, int hasCtrl) {
     int foundExp = 0; // checking if expression found in file
-    if (f != NULL) {
+    if (f != NULL) { //opens files, based on f flag if needed
         if (strstr(path, f) != NULL) {
             FILE *fptr = fopen(path, "r");
             if (fptr != NULL){
-                if (hasCtrl == 1) {
+                if (hasCtrl == 1) { //one function for exp with ctrl chars, one for no ctrl chars
                     foundExp = findRegExp(fptr, exp, path);
                 } else {
                     foundExp = findExp(fptr, exp, path);
@@ -321,7 +321,7 @@ int main(int argc, char **argv) {
     char *sFlag = NULL;
     int index;
     int c;
-    while ((c = getopt (argc, argv, "p:f:ls:")) != -1)
+    while ((c = getopt (argc, argv, "p:f:ls:")) != -1) // checking the options and sending errors if invalid options found
         switch (c)
         {
         case 'p':
@@ -362,7 +362,7 @@ int main(int argc, char **argv) {
     for (index = optind; index < argc; index++) {
         fprintf (stderr, "Non-option argument %s\n", argv[index]);
     }
-    if (fFlag != NULL) {
+    if (fFlag != NULL) { // checking fFlag for only valid f args
         if (strcmp(fFlag,"S") == 0) {
             fFlag = ".s";
         } else if (strcmp(fFlag,"c") == 0) {
