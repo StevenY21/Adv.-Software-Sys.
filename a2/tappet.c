@@ -18,23 +18,11 @@ typedef struct {
     int out;       // Index for removing from the buffer
     int size;      // Size of the buffer
 } shared_data_t;
-
 typedef struct {
   char *data;			/* Slot data.                            */
   size_t size;			/* Size of data.                         */
   pthread_t id;			/* ID of destination thread.             */
 } slot_t;
-
-typedef struct {
-  slot_t slot[BUFFER_SIZE];
-  int count;			/* Number of full slots in buffer.       */
-  int in_marker;		/* Next slot to add data to.             */
-  int out_marker;		/* Next slot to take data from.          */
-  pthread_mutex_t mutex;		/* Mutex for shared buffer.                        */
-  pthread_cond_t occupied_slot;         /* Condition when >= 1 full buffer slots.          */
-  pthread_cond_t empty_slot;            /* Condition when at least 1 empty mailbox slot.   */    
-} buffer_t;
-
 typedef struct {
     char *shm_id_str_read;
     char *shm_id_str_write;
@@ -42,7 +30,6 @@ typedef struct {
     char *buffer_type;
     char *argn;
 } fn_args; // all of the arguments needed for observe, reconstruct, and tapplot
-buffer_t buffer;
 int main(int argc, char *argv[]) {
     char *task_names[MAX_THREADS];
     int num_tasks;
@@ -116,49 +103,47 @@ int main(int argc, char *argv[]) {
         char shm_id_str_write[10];
         arguments->buffer_type = buffer_type;
         arguments->argn = argn;
-        if (fork() == 0) {
-            void * (*fn) (void *);
-            //if (strcmp(task_names[i], "observe") == 0) {
-            //    fn = observe;
-            //} else if (strcmp(task_names[i], "reconstruct") == 0) {
-            //    fn = reconstruct;
-            //} else {
-            //    fn = tapplot;
-            //}
-            arguments->shm_id_str_read = NULL;
-            arguments->shm_id_str_write = NULL;
-            if (strcmp(task_names[i], last_program) == 0) {
-                // if last, read from previous
-                sprintf(shm_id_str_read, "%d", shm_ids[i - 1]);
-                fprintf(stderr, "Executing: %s\n", last_program);
-                arguments->shm_id_str_read = shm_id_str_read;
-                //execlp(last_program, last_program, shm_id_str_read, buffer_type, argn, NULL);
-                if (pthread_create(thread_arr[i], NULL, fn, (void *)arguments) != 0) {
-                    perror("thread creation failed");
-                    exit(1);
-                }
-            } else if(i == 0){ //im assuming i == 0 is the first one
-                // if first, write to current
-                sprintf(shm_id_str_write, "%d", shm_ids[i]);
-                fprintf(stderr, "Executing: %s\n", task_names[i]);
-                arguments->shm_id_str_write = shm_id_str_write;
-                //execlp(task_names[i], task_names[i], shm_id_str_write, input_file, buffer_type, NULL);
-                if (pthread_create(thread_arr[i], NULL, fn, (void *)arguments) != 0) {
-                    perror("thread creation failed");
-                    exit(1);
-                }
-            } else {
-                // if middle, then read from previous and write to current
-                sprintf(shm_id_str_read, "%d", shm_ids[i - 1]);
-                sprintf(shm_id_str_write, "%d", shm_ids[i]);
-                fprintf(stderr, "Executing: %s\n", task_names[i]);
-                arguments->shm_id_str_write = shm_id_str_write;
-                arguments->shm_id_str_read = shm_id_str_read;
-                //execlp(task_names[i], task_names[i], shm_id_str_read, shm_id_str_write, buffer_type, NULL);
-                if (pthread_create(thread_arr[i], NULL, fn, (void *)arguments) != 0) {
-                    perror("thread creation failed");
-                    exit(1);
-                }
+        void * (*fn) (void *);
+        //if (strcmp(task_names[i], "observe") == 0) {
+        //    fn = observe;
+        //} else if (strcmp(task_names[i], "reconstruct") == 0) {
+        //    fn = reconstruct;
+        //} else {
+        //    fn = tapplot;
+        //}
+        arguments->shm_id_str_read = NULL;
+        arguments->shm_id_str_write = NULL;
+        if (strcmp(task_names[i], last_program) == 0) {
+            // if last, read from previous
+            sprintf(shm_id_str_read, "%d", shm_ids[i - 1]);
+            fprintf(stderr, "Executing: %s\n", last_program);
+            arguments->shm_id_str_read = shm_id_str_read;
+            //execlp(last_program, last_program, shm_id_str_read, buffer_type, argn, NULL);
+            if (pthread_create(thread_arr[i], NULL, fn, (void *)arguments) != 0) {
+                perror("thread creation failed");
+                exit(1);
+            }
+        } else if(i == 0){ //im assuming i == 0 is the first one
+            // if first, write to current
+            sprintf(shm_id_str_write, "%d", shm_ids[i]);
+            fprintf(stderr, "Executing: %s\n", task_names[i]);
+            arguments->shm_id_str_write = shm_id_str_write;
+            //execlp(task_names[i], task_names[i], shm_id_str_write, input_file, buffer_type, NULL);
+            if (pthread_create(thread_arr[i], NULL, fn, (void *)arguments) != 0) {
+                perror("thread creation failed");
+                exit(1);
+            }
+        } else {
+            // if middle, then read from previous and write to current
+            sprintf(shm_id_str_read, "%d", shm_ids[i - 1]);
+            sprintf(shm_id_str_write, "%d", shm_ids[i]);
+            fprintf(stderr, "Executing: %s\n", task_names[i]);
+            arguments->shm_id_str_write = shm_id_str_write;
+            arguments->shm_id_str_read = shm_id_str_read;
+            //execlp(task_names[i], task_names[i], shm_id_str_read, shm_id_str_write, buffer_type, NULL);
+            if (pthread_create(thread_arr[i], NULL, fn, (void *)arguments) != 0) {
+                perror("thread creation failed");
+                exit(1);
             }
         }
     }
