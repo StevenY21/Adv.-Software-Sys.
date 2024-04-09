@@ -1,9 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sys/wait.h>
+#include <getopt.h>
 
 #define MAX_LINE_LENGTH 2056
 #define MAX_NAME_VALUE_PAIRS 2056
+#define MAX_STRING_SIZE 2056
 
 // Define a struct for name value pairs
 typedef struct {
@@ -15,6 +21,22 @@ typedef struct {
 NameValuePair pairs[MAX_NAME_VALUE_PAIRS];
 int pairCount = 0;
 
+// Structure for shared data
+typedef struct {
+    char **buffer;   // Shared buffer
+    int in;        // Index for inserting into the buffer
+    int out;       // Index for removing from the buffer
+    int size;      // Size of the buffer
+} shared_data_t;
+
+typedef struct {
+    char *shm_id_str_read;
+    char *shm_id_str_write;
+    char *input_file;
+    char *buffer_type;
+    char *argn;
+} fn_args; // all of the arguments needed for observe, reconstruct, and tapplot
+
 // findPair, function to search for matching pair with name
 int findPair(char* name) {
     for (int i = 0; i < pairCount; i++) {
@@ -24,17 +46,40 @@ int findPair(char* name) {
     }
     return -1;
 }
+// Function to check if the buffer is full from lecture
+int isFull(shared_data_t *shared_data) {
+    return (shared_data->in + 1) % shared_data->size == shared_data->out;
+}
 
-int main(int argc, char *argv[]) {
-    // Initializing our variables, the file and the line
+// Function to check if the buffer is empty from lecture
+int isEmpty(shared_data_t *shared_data) {
+    return shared_data->in == shared_data->out;
+}
+void *observe(void *input) {
+    fn_args *input_args = (struct fn_args*) input;
     FILE *file;
     char line[MAX_LINE_LENGTH];
+    int shm_id = atoi(input_args->shm_id_str_write);
+    printf("Attaching to shared memory segment ID: %d\n", shm_id);
+    // Attach to shared memory
+    shared_data_t *shared_data = (shared_data_t *)shmat(shm_id, NULL, 0);
+    if ((void *)shared_data == (void *)-1) {
+        perror("shmat");
+        exit(1);
+    }
+    // Allocate memory for the buffer within the shared memory segment
+    shared_data->buffer = (char **)((char *)shared_data + sizeof(shared_data_t));
+
+    for (int j = 0; j < shared_data->size; j++) {
+        shared_data->buffer[j] = (char *)(shared_data->buffer + shared_data->size) + j * MAX_STRING_SIZE;
+    }
+
     // If there's a filename, open it for reading, otherwise set to stdin
-    if (argc > 1) {
-        file = fopen(argv[1], "r");
+    if (input_args->input_file != NULL) {
+        file = fopen(input_args->input_file, "r");
         if (file == NULL) {
-            printf("Could not open file %s\n", argv[1]);
-            return 1;
+            printf("Could not open file %s\n", input_args->input_file);
+            exit(1);
         }
     } else {
         file = stdin;
@@ -53,21 +98,39 @@ int main(int argc, char *argv[]) {
                 strcpy(pairs[pairCount].name, name);
                 strcpy(pairs[pairCount].value, value);
                 pairCount++;
-                printf("%s=%s\n", pairs[pairCount-1].name, pairs[pairCount-1].value);
+                while(isFull(shared_data)){
+                    // wait until the buffer is not full before writing
+                    printf("Observe: buffer is full.");
+                }
+                sprintf(*(shared_data->buffer + shared_data->in), "%s=%s", name, value);
+                printf("Buffer: %s\n", *(shared_data->buffer + shared_data->in));
+                shared_data->in = (shared_data->in + 1) % shared_data->size;
             } else {
                 // If there is a match, check if the value differs
                 if (strcmp(pairs[index].value, value) != 0) {
                     // If it differs, update and write
                     strcpy(pairs[index].value, value);
-                    printf("%s=%s\n", pairs[index].name, pairs[index].value);
+                    while(isFull(shared_data)){
+                        printf("Observe: buffer is full.\n");
+                    }
+                    sprintf(*(shared_data->buffer + shared_data->in), "%s=%s", name, value);
+                    printf("Buffer: %s\n", *(shared_data->buffer + shared_data->in));
+                    shared_data->in = (shared_data->in + 1) % shared_data->size;
                 }
             }
         }
     }
     // If we were using file for input, close it
-    if (argc > 1) {
+    if (input_args->input_file != NULL) {
         fclose(file);
     }
+    printf("Observe: end of input reached. Detaching from shared memory...\n");
+    // detach from shared memory
+    if (shmdt(shared_data) == -1) {
+        perror("shmdt");
+        exit(1);
+    }
+
     // Exit
-    return 0;
+    exit(0);
 }

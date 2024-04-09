@@ -1,2 +1,2 @@
-reconstruct: reconstruct.c
-		gcc reconstruct.c -o reconstruct
+observe.o: observe.c
+		gcc -c observe.c -o observe.o
