@@ -1,17 +1,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <dlfcn.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/wait.h>
 #include <getopt.h>
 #include <string.h>
 #include <pthread.h>
+#include "libtap.h"
 
 #define MAX_STRING_SIZE 2056
 #define MAX_THREADS 100
 #define BUFFER_SIZE   2
-#define MAX_PRODUCERS 10
+
 typedef struct {
     char **buffer;   // Shared buffer
     int in;        // Index for inserting into the buffer
@@ -32,9 +34,9 @@ typedef struct {
 } fn_args; // all of the arguments needed for observe, reconstruct, and tapplot
 int main(int argc, char *argv[]) {
     char *task_names[MAX_THREADS];
-    int num_tasks;
+    int num_tasks = 0;
     char *buffer_type = NULL;
-    int buffer_size = NULL;
+    int buffer_size = 0;
     char *argn = "1\0";
     char *input_file = NULL;
     char *last_program = NULL;
@@ -44,9 +46,10 @@ int main(int argc, char *argv[]) {
         {
         case 'p':
             if(optind < argc) {
-                task_names[MAX_THREADS] = argv[optind];
+                task_names[num_tasks] = optarg;
+                printf("%s\n", task_names[num_tasks]);
                 num_tasks++;
-                last_program = argv[optind];
+                last_program = optarg;
                 // if there's an input filename given after observe, get it
                 if (strcmp(optarg, "observe") == 0 && optind < argc && argv[optind][0] != '-') {
                     input_file = argv[optind];
@@ -69,9 +72,9 @@ int main(int argc, char *argv[]) {
             }
         }
     }
+    printf("%d\n", num_tasks);
     int shm_ids[num_tasks];
     shared_data_t *shared_data[num_tasks];
-    pthread_t thread_arr[num_tasks];
     for (int i = 0; i < num_tasks; i++) {
         size_t shm_size = sizeof(shared_data_t) + buffer_size * MAX_STRING_SIZE;
         shm_ids[i] = shmget(IPC_PRIVATE, shm_size, IPC_CREAT | 0666);
@@ -79,6 +82,7 @@ int main(int argc, char *argv[]) {
             perror("shmget");
             exit(1);
         }
+        pthread_t new_thread;
 
         shared_data[i] = (shared_data_t *)shmat(shm_ids[i], NULL, 0);
         if ((void *)shared_data[i] == (void *)-1) {
@@ -93,7 +97,6 @@ int main(int argc, char *argv[]) {
 
         // Allocate memory for the buffer within the shared memory segment
         shared_data[i]->buffer = (char **)((char *)shared_data[i] + sizeof(shared_data_t));
-
         // Initialize each element of the buffer
         for (int j = 0; j < shared_data[i]->size; j++) {
             shared_data[i]->buffer[j] = (char *)(shared_data[i]->buffer + shared_data[i]->size) + j * MAX_STRING_SIZE;
@@ -103,23 +106,19 @@ int main(int argc, char *argv[]) {
         char shm_id_str_write[10];
         arguments->buffer_type = buffer_type;
         arguments->argn = argn;
-        void * (*fn) (void *);
-        //if (strcmp(task_names[i], "observe") == 0) {
-        //    fn = observe;
-        //} else if (strcmp(task_names[i], "reconstruct") == 0) {
-        //    fn = reconstruct;
-        //} else {
-        //    fn = tapplot;
-        //}
+        void (*fn)(void*);
+        void *libtap =dlopen("libtap.so", RTLD_NOW); 
+        *(void**)(&fn) = dlsym(libtap, task_names[i]);
+        sprintf(shm_id_str_read, "%d", shm_ids[i - 1]);
         arguments->shm_id_str_read = NULL;
         arguments->shm_id_str_write = NULL;
         if (strcmp(task_names[i], last_program) == 0) {
             // if last, read from previous
             sprintf(shm_id_str_read, "%d", shm_ids[i - 1]);
-            fprintf(stderr, "Executing: %s\n", last_program);
+            fprintf(stderr, "Executing last program: %s\n", last_program);
             arguments->shm_id_str_read = shm_id_str_read;
             //execlp(last_program, last_program, shm_id_str_read, buffer_type, argn, NULL);
-            if (pthread_create(thread_arr[i], NULL, fn, (void *)arguments) != 0) {
+            if (pthread_create(new_thread, NULL, fn, (void *)arguments) != 0) {
                 perror("thread creation failed");
                 exit(1);
             }
@@ -129,7 +128,7 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "Executing: %s\n", task_names[i]);
             arguments->shm_id_str_write = shm_id_str_write;
             //execlp(task_names[i], task_names[i], shm_id_str_write, input_file, buffer_type, NULL);
-            if (pthread_create(thread_arr[i], NULL, fn, (void *)arguments) != 0) {
+            if (pthread_create(new_thread, NULL, fn, (void *)arguments) != 0) {
                 perror("thread creation failed");
                 exit(1);
             }
@@ -141,18 +140,16 @@ int main(int argc, char *argv[]) {
             arguments->shm_id_str_write = shm_id_str_write;
             arguments->shm_id_str_read = shm_id_str_read;
             //execlp(task_names[i], task_names[i], shm_id_str_read, shm_id_str_write, buffer_type, NULL);
-            if (pthread_create(thread_arr[i], NULL, fn, (void *)arguments) != 0) {
+            if (pthread_create(new_thread, NULL, fn, (void *)arguments) != 0) {
                 perror("thread creation failed");
                 exit(1);
             }
         }
+        pthread_join (new_thread, NULL);
     }
     // this wait might not be needed
     for (int i = 0; i < num_tasks; i++) {
         wait(NULL);
-    }
-    for (int i = 0; i < num_tasks; i++) {
-        pthread_join (thread_arr[i], NULL);
     }
     for (int i = 0; i < num_tasks; i++) {
         for (int j = 0; j < shared_data[i]->size; j++) {

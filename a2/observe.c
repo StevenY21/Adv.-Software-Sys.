@@ -56,7 +56,7 @@ int isEmpty(shared_data_t *shared_data) {
     return shared_data->in == shared_data->out;
 }
 void *observe(void *input) {
-    fn_args *input_args = (struct fn_args*) input;
+    fn_args *input_args = (fn_args*) input;
     FILE *file;
     char line[MAX_LINE_LENGTH];
     int shm_id = atoi(input_args->shm_id_str_write);
