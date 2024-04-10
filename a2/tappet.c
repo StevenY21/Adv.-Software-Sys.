@@ -152,11 +152,13 @@ int main(int argc, char *argv[]) {
     }
     fprintf(stderr, "%s", "detaching and freeing data\n");
     for (int i = 0; i < num_tasks; i++) {
-        fprintf(stderr, "%s", "freeing shared data\n");
+        fprintf(stderr, "%s %d\n", "freeing shared data", shared_data[i]->size);
+        printf("%s", shared_data[i]->buffer[0]);
         for (int j = 0; j < shared_data[i]->size; j++) {
+            printf("%s", shared_data[i]->buffer[j]);
             free(shared_data[i]->buffer[j]);
         }
-        fprintf(stderr, "%s", "freeing shared data 2\n");
+        fprintf(stderr, "%s", "freeing shared data 2\n"); 
         free(shared_data[i]->buffer);
         fprintf(stderr, "%s", "detaching shared mem\n");
         if (shmdt(shared_data[i]) == -1) {
