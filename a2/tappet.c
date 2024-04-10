@@ -73,6 +73,7 @@ int main(int argc, char *argv[]) {
     }
     printf("%d\n", num_tasks);
     printf("%s\n", input_file);
+    printf("%s\n", buffer_type);
     int shm_ids[num_tasks];
     shared_data_t *shared_data[num_tasks];
     pthread_t task_threads[num_tasks];
@@ -83,7 +84,6 @@ int main(int argc, char *argv[]) {
             perror("shmget");
             exit(1);
         }
-        pthread_t new_thread;
 
         shared_data[i] = (shared_data_t *)shmat(shm_ids[i], NULL, 0);
         if ((void *)shared_data[i] == (void *)-1) {
@@ -91,26 +91,28 @@ int main(int argc, char *argv[]) {
             exit(1);
         }
         printf("Shared memory segment %d created with ID %d\n", i, shm_ids[i]);
-
+        fprintf(stderr, "%s", "setting up shared data\n");
         shared_data[i]->in = 0;
         shared_data[i]->out = 0;
         shared_data[i]->size = buffer_size;
-
+        printf("%d\n", shared_data[i]->size);
+        fprintf(stderr, "%s", "allocating memory\n");
         // Allocate memory for the buffer within the shared memory segment
         shared_data[i]->buffer = (char **)((char *)shared_data[i] + sizeof(shared_data_t));
         // Initialize each element of the buffer
+        fprintf(stderr, "%s", "initializing elements\n");
         for (int j = 0; j < shared_data[i]->size; j++) {
             shared_data[i]->buffer[j] = (char *)(shared_data[i]->buffer + shared_data[i]->size) + j * MAX_STRING_SIZE;
         }
-        fn_args *arguments;
+        fprintf(stderr, "%s", "getting thread args\n");
+        fn_args *arguments = (fn_args *)malloc(sizeof(fn_args));
         char shm_id_str_read[10];
         char shm_id_str_write[10];
         arguments->buffer_type = buffer_type;
         arguments->argn = argn;
         void (*fn)(void*);
         //problem here
-        printf("%s\n", "getting function");
-        void *libtap =dlopen("libtap.so", RTLD_NOW); 
+        void *libtap =dlopen("libtap.so", RTLD_LAZY); 
         if (libtap == NULL) {
             fprintf(stderr, "%s\n", "cannot open library");
             exit(1);
@@ -143,20 +145,25 @@ int main(int argc, char *argv[]) {
             perror("thread creation failed");
             exit(1);
         }
-        pthread_join (new_thread, NULL);
     }
+    fprintf(stderr, "%s", "joining threads\n");
     for(int i = 0; i < num_tasks; i++) {
         pthread_join(task_threads[i], NULL);
     }
+    fprintf(stderr, "%s", "detaching and freeing data\n");
     for (int i = 0; i < num_tasks; i++) {
+        fprintf(stderr, "%s", "freeing shared data\n");
         for (int j = 0; j < shared_data[i]->size; j++) {
             free(shared_data[i]->buffer[j]);
         }
+        fprintf(stderr, "%s", "freeing shared data 2\n");
         free(shared_data[i]->buffer);
+        fprintf(stderr, "%s", "detaching shared mem\n");
         if (shmdt(shared_data[i]) == -1) {
             perror("shmdt");
             exit(1);
         }
+        fprintf(stderr, "%s", "shared mem control\n");
         if (shmctl(shm_ids[i], IPC_RMID, NULL) == -1) {
             perror("shmctl");
             exit(1);

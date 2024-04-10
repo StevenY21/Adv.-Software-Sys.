@@ -131,7 +131,7 @@ void observe(void *input) {
         perror("shmdt");
         return;
     }
-
+    fprintf(stderr,"%s\n", "exiting");
     // Exit
     return;
 }
