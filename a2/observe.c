@@ -55,7 +55,8 @@ int isFull(shared_data_t *shared_data) {
 int isEmpty(shared_data_t *shared_data) {
     return shared_data->in == shared_data->out;
 }
-void *observe(void *input) {
+void observe(void *input) {
+    printf("%s", "observing time");
     fn_args *input_args = (fn_args*) input;
     FILE *file;
     char line[MAX_LINE_LENGTH];
@@ -65,7 +66,7 @@ void *observe(void *input) {
     shared_data_t *shared_data = (shared_data_t *)shmat(shm_id, NULL, 0);
     if ((void *)shared_data == (void *)-1) {
         perror("shmat");
-        exit(1);
+        return;
     }
     // Allocate memory for the buffer within the shared memory segment
     shared_data->buffer = (char **)((char *)shared_data + sizeof(shared_data_t));
@@ -79,7 +80,7 @@ void *observe(void *input) {
         file = fopen(input_args->input_file, "r");
         if (file == NULL) {
             printf("Could not open file %s\n", input_args->input_file);
-            exit(1);
+            return;
         }
     } else {
         file = stdin;
@@ -128,9 +129,9 @@ void *observe(void *input) {
     // detach from shared memory
     if (shmdt(shared_data) == -1) {
         perror("shmdt");
-        exit(1);
+        return;
     }
 
     // Exit
-    exit(0);
+    return;
 }

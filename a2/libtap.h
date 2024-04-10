@@ -1,1 +1,1 @@
-void *observe(void *input);
+int observe(void *input);

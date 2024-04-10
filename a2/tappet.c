@@ -8,7 +8,6 @@
 #include <getopt.h>
 #include <string.h>
 #include <pthread.h>
-#include "libtap.h"
 
 #define MAX_STRING_SIZE 2056
 #define MAX_THREADS 100
@@ -64,7 +63,7 @@ int main(int argc, char *argv[]) {
             break;
         }
     }
-    if (last_program != NULL) {
+    if (last_program != NULL) { //for getting argn value
         for (int i = optind; i < argc; i++) {
             if (strcmp(argv[i], last_program) == 0 && i + 1 < argc) {
                 argn = argv[i + 1];
@@ -73,8 +72,10 @@ int main(int argc, char *argv[]) {
         }
     }
     printf("%d\n", num_tasks);
+    printf("%s\n", input_file);
     int shm_ids[num_tasks];
     shared_data_t *shared_data[num_tasks];
+    pthread_t task_threads[num_tasks];
     for (int i = 0; i < num_tasks; i++) {
         size_t shm_size = sizeof(shared_data_t) + buffer_size * MAX_STRING_SIZE;
         shm_ids[i] = shmget(IPC_PRIVATE, shm_size, IPC_CREAT | 0666);
@@ -107,49 +108,45 @@ int main(int argc, char *argv[]) {
         arguments->buffer_type = buffer_type;
         arguments->argn = argn;
         void (*fn)(void*);
+        //problem here
+        printf("%s\n", "getting function");
         void *libtap =dlopen("libtap.so", RTLD_NOW); 
+        if (libtap == NULL) {
+            fprintf(stderr, "%s\n", "cannot open library");
+            exit(1);
+        }
         *(void**)(&fn) = dlsym(libtap, task_names[i]);
-        sprintf(shm_id_str_read, "%d", shm_ids[i - 1]);
+        if (fn == NULL) {
+            fprintf(stderr, "%s\n", "cannot get function");
+            exit(1);
+        }
         arguments->shm_id_str_read = NULL;
         arguments->shm_id_str_write = NULL;
-        if (strcmp(task_names[i], last_program) == 0) {
-            // if last, read from previous
+        arguments->input_file = input_file;
+        if (i == 0) { //first task, reads from stdin/file and writes to buffer
+            sprintf(shm_id_str_write, "%d", shm_ids[i]);
+            arguments->shm_id_str_write = shm_id_str_write;
+            fprintf(stderr, "Executing first program: %s\n", task_names[i]);
+        } else if (i == -1) { // last task, only reads from buffer and writes to stdout
             sprintf(shm_id_str_read, "%d", shm_ids[i - 1]);
+            arguments->shm_id_str_read = shm_id_str_read;
             fprintf(stderr, "Executing last program: %s\n", last_program);
-            arguments->shm_id_str_read = shm_id_str_read;
-            //execlp(last_program, last_program, shm_id_str_read, buffer_type, argn, NULL);
-            if (pthread_create(new_thread, NULL, fn, (void *)arguments) != 0) {
-                perror("thread creation failed");
-                exit(1);
-            }
-        } else if(i == 0){ //im assuming i == 0 is the first one
-            // if first, write to current
-            sprintf(shm_id_str_write, "%d", shm_ids[i]);
-            fprintf(stderr, "Executing: %s\n", task_names[i]);
-            arguments->shm_id_str_write = shm_id_str_write;
-            //execlp(task_names[i], task_names[i], shm_id_str_write, input_file, buffer_type, NULL);
-            if (pthread_create(new_thread, NULL, fn, (void *)arguments) != 0) {
-                perror("thread creation failed");
-                exit(1);
-            }
-        } else {
-            // if middle, then read from previous and write to current
+        } else { //read from previous buffer, write to next
             sprintf(shm_id_str_read, "%d", shm_ids[i - 1]);
             sprintf(shm_id_str_write, "%d", shm_ids[i]);
             fprintf(stderr, "Executing: %s\n", task_names[i]);
             arguments->shm_id_str_write = shm_id_str_write;
             arguments->shm_id_str_read = shm_id_str_read;
-            //execlp(task_names[i], task_names[i], shm_id_str_read, shm_id_str_write, buffer_type, NULL);
-            if (pthread_create(new_thread, NULL, fn, (void *)arguments) != 0) {
-                perror("thread creation failed");
-                exit(1);
-            }
+        }
+        //printf("creating thread %s\n", task_names[i]);
+        if (pthread_create(&task_threads[i], NULL, (void *(*)(void *))fn, (void *)arguments) != 0) {
+            perror("thread creation failed");
+            exit(1);
         }
         pthread_join (new_thread, NULL);
     }
-    // this wait might not be needed
-    for (int i = 0; i < num_tasks; i++) {
-        wait(NULL);
+    for(int i = 0; i < num_tasks; i++) {
+        pthread_join(task_threads[i], NULL);
     }
     for (int i = 0; i < num_tasks; i++) {
         for (int j = 0; j < shared_data[i]->size; j++) {
