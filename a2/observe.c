@@ -1,11 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
+#include <dlfcn.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/wait.h>
 #include <getopt.h>
+#include <string.h>
+#include <pthread.h>
 
 #define MAX_LINE_LENGTH 2056
 #define MAX_NAME_VALUE_PAIRS 2056
@@ -27,6 +29,7 @@ typedef struct {
     int in;        // Index for inserting into the buffer
     int out;       // Index for removing from the buffer
     int size;      // Size of the buffer
+    pthread_mutex_t mutex;		/* Mutex for shared buffer.                        */
 } shared_data_t;
 
 typedef struct {
@@ -68,13 +71,16 @@ void observe(void *input) {
         perror("shmat");
         return;
     }
+    if (input_args->buffer_type == "sync") {
+        pthread_mutex_lock (&shared_data->mutex);
+    }
     // Allocate memory for the buffer within the shared memory segment
     shared_data->buffer = (char **)((char *)shared_data + sizeof(shared_data_t));
 
     for (int j = 0; j < shared_data->size; j++) {
         shared_data->buffer[j] = (char *)(shared_data->buffer + shared_data->size) + j * MAX_STRING_SIZE;
     }
-
+    
     // If there's a filename, open it for reading, otherwise set to stdin
     if (input_args->input_file != NULL) {
         file = fopen(input_args->input_file, "r");
@@ -124,6 +130,9 @@ void observe(void *input) {
     // If we were using file for input, close it
     if (input_args->input_file != NULL) {
         fclose(file);
+    }
+    if (input_args->buffer_type == "sync") {
+        pthread_mutex_unlock (&shared_data->mutex);
     }
     printf("Observe: end of input reached. Detaching from shared memory...\n");
     // detach from shared memory

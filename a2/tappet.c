@@ -18,11 +18,13 @@ typedef struct {
     int in;        // Index for inserting into the buffer
     int out;       // Index for removing from the buffer
     int size;      // Size of the buffer
+    pthread_mutex_t mutex;		/* Mutex for shared buffer.                        */
 } shared_data_t;
 typedef struct {
   char *data;			/* Slot data.                            */
   size_t size;			/* Size of data.                         */
   pthread_t id;			/* ID of destination thread.             */
+
 } slot_t;
 typedef struct {
     char *shm_id_str_read;
@@ -84,7 +86,9 @@ int main(int argc, char *argv[]) {
             perror("shmget");
             exit(1);
         }
-
+        if (buffer_type == "sync") {
+            pthread_mutex_init (&shared_data[i]->mutex, NULL);
+        }
         shared_data[i] = (shared_data_t *)shmat(shm_ids[i], NULL, 0);
         if ((void *)shared_data[i] == (void *)-1) {
             perror("shmat");
@@ -128,11 +132,11 @@ int main(int argc, char *argv[]) {
         if (i == 0) { //first task, reads from stdin/file and writes to buffer
             sprintf(shm_id_str_write, "%d", shm_ids[i]);
             arguments->shm_id_str_write = shm_id_str_write;
-            fprintf(stderr, "Executing first program: %s\n", task_names[i]);
+            fprintf(stderr, "Executing first task: %s\n", task_names[i]);
         } else if (i == -1) { // last task, only reads from buffer and writes to stdout
             sprintf(shm_id_str_read, "%d", shm_ids[i - 1]);
             arguments->shm_id_str_read = shm_id_str_read;
-            fprintf(stderr, "Executing last program: %s\n", last_program);
+            fprintf(stderr, "Executing last task: %s\n", last_program);
         } else { //read from previous buffer, write to next
             sprintf(shm_id_str_read, "%d", shm_ids[i - 1]);
             sprintf(shm_id_str_write, "%d", shm_ids[i]);
@@ -150,16 +154,8 @@ int main(int argc, char *argv[]) {
     for(int i = 0; i < num_tasks; i++) {
         pthread_join(task_threads[i], NULL);
     }
-    fprintf(stderr, "%s", "detaching and freeing data\n");
+    fprintf(stderr, "%s", "detaching and segments\n");
     for (int i = 0; i < num_tasks; i++) {
-        fprintf(stderr, "%s %d\n", "freeing shared data", shared_data[i]->size);
-        printf("%s", shared_data[i]->buffer[0]);
-        for (int j = 0; j < shared_data[i]->size; j++) {
-            printf("%s", shared_data[i]->buffer[j]);
-            free(shared_data[i]->buffer[j]);
-        }
-        fprintf(stderr, "%s", "freeing shared data 2\n"); 
-        free(shared_data[i]->buffer);
         fprintf(stderr, "%s", "detaching shared mem\n");
         if (shmdt(shared_data[i]) == -1) {
             perror("shmdt");
