@@ -10,15 +10,19 @@
 #include <pthread.h>
 
 #define MAX_STRING_SIZE 2056
+#define MAX_BUFFER_SIZE 50
 #define MAX_THREADS 100
 #define BUFFER_SIZE   2
 
 typedef struct {
-    char **buffer;   // Shared buffer
+    char buffer[MAX_BUFFER_SIZE][MAX_STRING_SIZE];   // Shared buffer
     int in;        // Index for inserting into the buffer
     int out;       // Index for removing from the buffer
     int size;      // Size of the buffer
+    int input_done;
     pthread_mutex_t mutex;		/* Mutex for shared buffer.                        */
+    pthread_cond_t empty_cond;         /* Condition when >= 1 full buffer slots.          */
+    pthread_cond_t full_cond;            /* Condition when at least 1 empty mailbox slot.   */   
 } shared_data_t;
 typedef struct {
   char *data;			/* Slot data.                            */
@@ -73,49 +77,50 @@ int main(int argc, char *argv[]) {
             }
         }
     }
-    printf("%d\n", num_tasks);
-    printf("%s\n", input_file);
-    printf("%s\n", buffer_type);
-    int shm_ids[num_tasks];
-    shared_data_t *shared_data[num_tasks];
-    pthread_t task_threads[num_tasks];
-    for (int i = 0; i < num_tasks; i++) {
-        size_t shm_size = sizeof(shared_data_t) + buffer_size * MAX_STRING_SIZE;
+    printf("buffer type %s\n", buffer_type);
+    int num_buffers = (num_tasks/2) + 1;
+    int shm_ids[num_buffers];
+    shared_data_t *shared_data[num_buffers];
+    pthread_t task_threads[num_buffers];
+    for(int i = 0; i < num_buffers; i++) {
+        size_t shm_size = sizeof(shared_data_t);
         shm_ids[i] = shmget(IPC_PRIVATE, shm_size, IPC_CREAT | 0666);
         if (shm_ids[i] < 0) {
             perror("shmget");
             exit(1);
-        }
-        if (buffer_type == "sync") {
-            pthread_mutex_init (&shared_data[i]->mutex, NULL);
         }
         shared_data[i] = (shared_data_t *)shmat(shm_ids[i], NULL, 0);
         if ((void *)shared_data[i] == (void *)-1) {
             perror("shmat");
             exit(1);
         }
-        printf("Shared memory segment %d created with ID %d\n", i, shm_ids[i]);
-        fprintf(stderr, "%s", "setting up shared data\n");
+        printf("Shared memory segment %d created with ID %d at location %p\n", i, shm_ids[i], shared_data[i]);
         shared_data[i]->in = 0;
         shared_data[i]->out = 0;
         shared_data[i]->size = buffer_size;
-        printf("%d\n", shared_data[i]->size);
-        fprintf(stderr, "%s", "allocating memory\n");
-        // Allocate memory for the buffer within the shared memory segment
-        shared_data[i]->buffer = (char **)((char *)shared_data[i] + sizeof(shared_data_t));
-        // Initialize each element of the buffer
-        fprintf(stderr, "%s", "initializing elements\n");
-        for (int j = 0; j < shared_data[i]->size; j++) {
-            shared_data[i]->buffer[j] = (char *)(shared_data[i]->buffer + shared_data[i]->size) + j * MAX_STRING_SIZE;
-        }
+        shared_data[i]->input_done = 0;
+        printf("Tapper assigned buffer address: %p\n", shared_data[i]->buffer);
+        pthread_mutex_init (&shared_data[i]->mutex, NULL);
+        pthread_cond_init (&shared_data[i]->empty_cond, NULL);
+        pthread_cond_init (&shared_data[i]->full_cond, NULL);
+
+    }
+    for (int i = 0; i < num_tasks; i++) {
         fprintf(stderr, "%s", "getting thread args\n");
         fn_args *arguments = (fn_args *)malloc(sizeof(fn_args));
         char shm_id_str_read[10];
         char shm_id_str_write[10];
         arguments->buffer_type = buffer_type;
+
         arguments->argn = argn;
+        //getting lib func
+        // don't forget
+        /*
+        LD_LIBRARY_PATH=/full/path/to/library/directory:${LD_LIBRARY_PATH}
+        export LD_LIBRARY_PATH
+        
+        */
         void (*fn)(void*);
-        //problem here
         void *libtap =dlopen("libtap.so", RTLD_LAZY); 
         if (libtap == NULL) {
             fprintf(stderr, "%s\n", "cannot open library");
@@ -126,14 +131,14 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "%s\n", "cannot get function");
             exit(1);
         }
-        arguments->shm_id_str_read = NULL;
-        arguments->shm_id_str_write = NULL;
+        arguments->shm_id_str_read = "";
+        arguments->shm_id_str_write = "";
         arguments->input_file = input_file;
         if (i == 0) { //first task, reads from stdin/file and writes to buffer
             sprintf(shm_id_str_write, "%d", shm_ids[i]);
             arguments->shm_id_str_write = shm_id_str_write;
             fprintf(stderr, "Executing first task: %s\n", task_names[i]);
-        } else if (i == -1) { // last task, only reads from buffer and writes to stdout
+        } else if (i == num_tasks - 1) { // last task, only reads from buffer and writes to stdout
             sprintf(shm_id_str_read, "%d", shm_ids[i - 1]);
             arguments->shm_id_str_read = shm_id_str_read;
             fprintf(stderr, "Executing last task: %s\n", last_program);
@@ -150,18 +155,21 @@ int main(int argc, char *argv[]) {
             exit(1);
         }
     }
-    fprintf(stderr, "%s", "joining threads\n");
+    //not 100% sure if i need
+    printf("joining threads %d numtasks\n", num_tasks);
     for(int i = 0; i < num_tasks; i++) {
         pthread_join(task_threads[i], NULL);
     }
-    fprintf(stderr, "%s", "detaching and segments\n");
     for (int i = 0; i < num_tasks; i++) {
-        fprintf(stderr, "%s", "detaching shared mem\n");
+        printf("destroying pthread mutexes and conds for %d\n", i);
+        pthread_mutex_destroy (&shared_data[i]->mutex);
+        pthread_cond_destroy (&shared_data[i]->empty_cond);
+        pthread_cond_destroy (&shared_data[i]->full_cond);
+        printf("detaching segments for %d\n", i);
         if (shmdt(shared_data[i]) == -1) {
             perror("shmdt");
             exit(1);
         }
-        fprintf(stderr, "%s", "shared mem control\n");
         if (shmctl(shm_ids[i], IPC_RMID, NULL) == -1) {
             perror("shmctl");
             exit(1);

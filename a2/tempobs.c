@@ -12,7 +12,6 @@
 #define MAX_LINE_LENGTH 2056
 #define MAX_NAME_VALUE_PAIRS 2056
 #define MAX_STRING_SIZE 2056
-#define MAX_BUFFER_SIZE 50
 
 // Define a struct for name value pairs
 typedef struct {
@@ -24,15 +23,13 @@ typedef struct {
 NameValuePair pairs[MAX_NAME_VALUE_PAIRS];
 int pairCount = 0;
 
+// Structure for shared data
 typedef struct {
-    char buffer[MAX_BUFFER_SIZE][MAX_STRING_SIZE];   // Shared buffer
+    char **buffer;   // Shared buffer
     int in;        // Index for inserting into the buffer
     int out;       // Index for removing from the buffer
     int size;      // Size of the buffer
-    int input_done;
     pthread_mutex_t mutex;		/* Mutex for shared buffer.                        */
-    pthread_cond_t empty_cond;         /* Condition when >= 1 full buffer slots.          */
-    pthread_cond_t full_cond;            /* Condition when at least 1 empty mailbox slot.   */   
 } shared_data_t;
 
 typedef struct {
@@ -41,6 +38,7 @@ typedef struct {
     char *input_file;
     char *buffer_type;
     char *argn;
+    shared_data_t *ring_buffer;
 } fn_args; // all of the arguments needed for observe, reconstruct, and tapplot
 
 // findPair, function to search for matching pair with name
@@ -62,20 +60,28 @@ int isEmpty(shared_data_t *shared_data) {
     return shared_data->in == shared_data->out;
 }
 void observe(void *input) {
-    printf("%s", "observing time\n");
+    fprintf(stderr, "%s", "observing time\n");
     fn_args *input_args = (fn_args*) input;
     FILE *file;
     char line[MAX_LINE_LENGTH];
-    printf("%s", "getting shm_id\n");
     int shm_id = atoi(input_args->shm_id_str_write);
-    fprintf(stderr,"Attaching to shared memory segment ID: %d\n", shm_id);
+    //printf("Attaching to shared memory segment ID: %d\n", shm_id);
     // Attach to shared memory
-    shared_data_t *shared_data = (shared_data_t *)shmat(shm_id, NULL, 0);
-    if ((void *)shared_data == (void *)-1) {
-        perror("Observe shmat");
-        return;
+    //shared_data_t *shared_data = (shared_data_t *)shmat(shm_id, NULL, 0);
+    //if ((void *)input_args->ring_buffer == (void *)-1) {
+    //    perror("shmat");
+    //    return;
+    //}
+    if (input_args->buffer_type == "sync") {
+        pthread_mutex_lock (&input_args->ring_buffer->mutex);
     }
-    pthread_mutex_lock (&shared_data->mutex);
+    // Allocate memory for the buffer within the shared memory segment
+    input_args->ring_buffer->buffer = (char **)((char *)input_args->ring_buffer + sizeof(shared_data_t));
+
+    for (int j = 0; j < input_args->ring_buffer->size; j++) {
+        input_args->ring_buffer->buffer[j] = (char *)(input_args->ring_buffer->buffer + input_args->ring_buffer->size) + j * MAX_STRING_SIZE;
+    }
+    
     // If there's a filename, open it for reading, otherwise set to stdin
     if (input_args->input_file != NULL) {
         file = fopen(input_args->input_file, "r");
@@ -100,24 +106,24 @@ void observe(void *input) {
                 strcpy(pairs[pairCount].name, name);
                 strcpy(pairs[pairCount].value, value);
                 pairCount++;
-                while(isFull(shared_data)){
+                while(isFull(input_args->ring_buffer)){
                     // wait until the buffer is not full before writing
-                    pthread_cond_wait (&shared_data->full_cond, &shared_data->mutex);
+                    printf("Observe: buffer is full.");
                 }
-                sprintf(*(shared_data->buffer + shared_data->in), "%s=%s", name, value);
-                printf("Buffer: %s\n", *(shared_data->buffer + shared_data->in));
-                shared_data->in = (shared_data->in + 1) % shared_data->size;
+                sprintf(*(input_args->ring_buffer->buffer + input_args->ring_buffer->in), "%s=%s", name, value);
+                printf("Buffer: %s\n", *(input_args->ring_buffer->buffer + input_args->ring_buffer->in));
+                input_args->ring_buffer->in = (input_args->ring_buffer->in + 1) % input_args->ring_buffer->size;
             } else {
                 // If there is a match, check if the value differs
                 if (strcmp(pairs[index].value, value) != 0) {
                     // If it differs, update and write
                     strcpy(pairs[index].value, value);
-                    while(isFull(shared_data)){
+                    while(isFull(input_args->ring_buffer)){
                         printf("Observe: buffer is full.\n");
                     }
-                    sprintf(*(shared_data->buffer + shared_data->in), "%s=%s", name, value);
-                    printf("Buffer: %s\n", *(shared_data->buffer + shared_data->in));
-                    shared_data->in = (shared_data->in + 1) % shared_data->size;
+                    sprintf(*(input_args->ring_buffer->buffer + input_args->ring_buffer->in), "%s=%s", name, value);
+                    printf("Buffer: %s\n", *(input_args->ring_buffer->buffer + input_args->ring_buffer->in));
+                    input_args->ring_buffer->in = (input_args->ring_buffer->in + 1) % input_args->ring_buffer->size;
                 }
             }
         }
@@ -126,13 +132,15 @@ void observe(void *input) {
     if (input_args->input_file != NULL) {
         fclose(file);
     }
-    pthread_mutex_unlock (&shared_data->mutex);
+    if (input_args->buffer_type == "sync") {
+        pthread_mutex_unlock (&input_args->ring_buffer->mutex);
+    }
     printf("Observe: end of input reached. Detaching from shared memory...\n");
     // detach from shared memory
-    if (shmdt(shared_data) == -1) {
-        perror("Observe shmdt");
-        return;
-    }
+    //if (shmdt(shared_data) == -1) {
+    //    perror("shmdt");
+    //    return;
+   //}
     fprintf(stderr,"%s\n", "exiting");
     // Exit
     return;

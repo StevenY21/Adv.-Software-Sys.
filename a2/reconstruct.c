@@ -1,19 +1,20 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
-#include <dlfcn.h>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/wait.h>
 #include <getopt.h>
-#include <string.h>
-#include <pthread.h>
+#include <assert.h>
+#include <semaphore.h>
 
 #define MAX_NAME_LENGTH 50
 #define MAX_VALUE_LENGTH 50
-#define MAX_PAIRS 100
-#define MAX_SAMPLES 100
+#define MAX_PAIRS 2000
+#define MAX_SAMPLES 650
 #define MAX_STRING_SIZE 2056
+#define MAX_BUFFER_SIZE 50
 
 typedef struct {
     char name[MAX_NAME_LENGTH];
@@ -22,80 +23,72 @@ typedef struct {
 
 typedef struct {
     char currSample[MAX_PAIRS][MAX_NAME_LENGTH];
-    int nextEmpty; // for tracking next open array spot
+    int nextEmpty;
 } Sample;
 
 // Structure for shared data
 typedef struct {
-    char **buffer;   // Shared buffer
-    int in;        // Index for inserting into the buffer
-    int out;       // Index for removing from the buffer
-    int size;      // Size of the buffer
-    pthread_mutex_t mutex;
+    char buffer[MAX_BUFFER_SIZE][MAX_STRING_SIZE];
+    int in;
+    int out;
+    int size;
+    sem_t sem_empty;
+    sem_t sem_full;
+    sem_t sem_mutex;
     int input_done;
 } shared_data_t;
-
-void writeToWriteBuffer(shared_data_t *write_shared_data, Sample samples[], int numSamples, int numUniques, char uniqueNames[MAX_PAIRS][MAX_NAME_LENGTH]) {
-    for (int i = 1; i <= numSamples; i++) {
-        char sampleData[MAX_NAME_LENGTH * MAX_PAIRS] = "";
-        for (int j = 0; j < numUniques; j++) {
-            strcat(sampleData, uniqueNames[j]);
-            strcat(sampleData, "=");
-            strcat(sampleData, samples[i].currSample[j]);
-            if (j < numUniques - 1) {
-                strcat(sampleData, ", ");
-            }
-        }
-        sprintf(*(write_shared_data->buffer + write_shared_data->in), "%s", sampleData);
-        printf("Buffer: %s\n", *(write_shared_data->buffer + write_shared_data->in));
-        write_shared_data->in = (write_shared_data->in + 1) % write_shared_data->size;
-    }
-}
+typedef struct {
+    char *shm_id_str_read;
+    char *shm_id_str_write;
+    char *input_file;
+    char *buffer_type;
+    char *argn;
+} fn_args; // all of the arguments needed for observe, reconstruct, and tapplot
 
 int main(int argc, char *argv[]) {
     int read_shm_id = atoi(argv[1]);
     int write_shm_id = atoi(argv[2]);
-    printf("Attaching to read shared memory segment ID: %d and write shared memory segment id: %d\n", read_shm_id, write_shm_id);
+    
     shared_data_t *read_shared_data = (shared_data_t *)shmat(read_shm_id, NULL, 0);
     if ((void *)read_shared_data == (void *)-1) {
         perror("shmat");
         return 1;
     }
+
     shared_data_t *write_shared_data = (shared_data_t *)shmat(write_shm_id, NULL, 0);
     if ((void *)write_shared_data == (void *)-1) {
         perror("shmat");
         return 1;
     }
 
-    // Allocate memory for the buffer within the shared memory segment
-    read_shared_data->buffer = (char **)((char *)read_shared_data + sizeof(shared_data_t));
-    write_shared_data->buffer = (char **)((char *)write_shared_data + sizeof(shared_data_t));
-
-    // Initialize each element of the buffer
-    for (int j = 0; j < read_shared_data->size; j++) {
-        read_shared_data->buffer[j] = (char *)(read_shared_data->buffer + read_shared_data->size) + j * MAX_STRING_SIZE;
-    }
-    for (int j = 0; j < write_shared_data->size; j++) {
-        write_shared_data->buffer[j] = (char *)(write_shared_data->buffer + write_shared_data->size) + j * MAX_STRING_SIZE;
-    }
-
-    NameVal nameValPairs[MAX_PAIRS];
+    NameVal* nameValPairs = (NameVal*) malloc(MAX_PAIRS * sizeof(NameVal));
     int numPairs = 0;
     int numUniques = 0;
     char headName[MAX_NAME_LENGTH];
     char endName[MAX_NAME_LENGTH];
     char prevChar[MAX_NAME_LENGTH];
 
-    char uniqueNames[MAX_PAIRS][MAX_NAME_LENGTH];
+    char (*uniqueNames)[MAX_NAME_LENGTH] = malloc(MAX_PAIRS * sizeof(*uniqueNames));
 
     // Getting all the name value pairs set up, as well as checking the number of unique names
     while(1) {
         char name[MAX_NAME_LENGTH];
         char value[MAX_VALUE_LENGTH];
- 
+        usleep(1000);
+        int empty;
+        sem_getvalue(&read_shared_data->sem_full, &empty);
+        if (empty == 0 && read_shared_data->input_done) {
+            break;
+        }
+
+        sem_wait(&read_shared_data->sem_full);
+
+        sem_wait(&read_shared_data->sem_mutex);
+
         // Read from the buffer
-        if (sscanf(*(read_shared_data->buffer + read_shared_data->out), "%[^=]=%[^\n]", name, value) == 2) {
-            printf("Read from buffer: Name=%s, Value=%s\n", name, value);
+        char *data = read_shared_data->buffer[read_shared_data->out];
+        if (sscanf(data, "%[^=]=%[^\n]", name, value) == 2) {
+            printf("Reconstruct read from buffer: Name=%s, Value=%s\n", name, value);
             strcpy(nameValPairs[numPairs].name, name);
             strcpy(nameValPairs[numPairs].value, value);
             numPairs++;
@@ -124,9 +117,9 @@ int main(int argc, char *argv[]) {
             }
             // Move to the next position in the buffer
             read_shared_data->out = (read_shared_data->out + 1) % read_shared_data->size;
-        } else {
-            break;
+            sem_post(&read_shared_data->sem_mutex);
         }
+        sem_post(&read_shared_data->sem_empty);
     }
 
     printf("%-20s", "Sample #");
@@ -135,66 +128,48 @@ int main(int argc, char *argv[]) {
     }
     printf("%s", "\n");
 
-    char prevName[MAX_NAME_LENGTH];
-    int currSampleNum = 1;
-    Sample samples[MAX_SAMPLES];
-    int i = 0;
+    // Initialize the last encountered values for each name
+    char (*lastValues)[MAX_VALUE_LENGTH] = malloc(MAX_PAIRS * sizeof(*lastValues));
+    int *seenInCurrentSample = malloc(MAX_PAIRS * sizeof(int));
 
-    while (i < numPairs) {
-        // If it's the head of the sample
-        if (strcmp(nameValPairs[i].name, prevName) != 0) {
-            char name[MAX_NAME_LENGTH];
-            strcpy(name, nameValPairs[i].name);
-            int nameIdx = 0;
-            // Find the unique name index
-            for (int j = 0; j < numUniques; j++) {
-                if (strcmp(uniqueNames[j], name) == 0) {
-                    nameIdx = j;
-                    break;
-                }
-            }
-            // Copy previous sample if exists
-            if (strcmp(samples[currSampleNum].currSample[nameIdx], "") != 0) {
-                currSampleNum++;
-                memcpy(samples[currSampleNum].currSample, samples[currSampleNum - 1].currSample,
-                       sizeof(samples[currSampleNum - 1].currSample));
-                strcpy(samples[currSampleNum].currSample[nameIdx], nameValPairs[i].value);
-                // Clear values of other names after the current name
-                for (int j = nameIdx + 1; j < numUniques; j++) {
-                    if (strcmp(samples[currSampleNum].currSample[j], "") != 0) {
-                        strcpy(samples[currSampleNum].currSample[j], "");
-                    }
-                }
-                samples[currSampleNum].nextEmpty = nameIdx + 1;
-            } else {
-                strcpy(samples[currSampleNum].currSample[samples[currSampleNum].nextEmpty], nameValPairs[i].value);
-                samples[currSampleNum].nextEmpty++;
-            }
-        } else { // Same name found
-            char name[MAX_NAME_LENGTH];
-            strcpy(name, nameValPairs[i].name);
-            int nameIdx = 0;
-            // Find the unique name index
-            for (int j = 0; j < numUniques; j++) {
-                if (strcmp(uniqueNames[j], name) == 0) {
-                    nameIdx = j;
-                    break;
-                }
-            }
-            // Copy previous sample if exists
-            currSampleNum++;
-            memcpy(samples[currSampleNum].currSample, samples[currSampleNum - 1].currSample,
-                   sizeof(samples[currSampleNum - 1].currSample));
-            strcpy(samples[currSampleNum].currSample[nameIdx], nameValPairs[i].value);
-            // Clear values of other names after the current name
-            for (int j = nameIdx + 1; j < numUniques; j++) {
-                if (strcmp(samples[currSampleNum].currSample[j], "") != 0) {
-                    strcpy(samples[currSampleNum].currSample[j], "");
-                }
+    memset(lastValues, 0, MAX_PAIRS * sizeof(*lastValues));
+    memset(seenInCurrentSample, 0, MAX_PAIRS * sizeof(int));
+
+    int currSampleNum = 0;
+    Sample* samples = (Sample*) malloc(MAX_SAMPLES * sizeof(Sample));
+    memset(samples, 0, MAX_SAMPLES * sizeof(Sample));
+
+    for (int i = 0; i < numPairs; i++) {
+        char* name = nameValPairs[i].name;
+        char* value = nameValPairs[i].value;
+
+        // Find the unique name index
+        int nameIdx = -1;
+        for (int j = 0; j < numUniques; j++) {
+            if (strcmp(uniqueNames[j], name) == 0) {
+                nameIdx = j;
+                break;
             }
         }
-        strcpy(prevName, nameValPairs[i].name);
-        i++;
+        // If we've seen this name in the current sample, start a new sample
+        if (seenInCurrentSample[nameIdx]) {
+            currSampleNum++;
+            memset(seenInCurrentSample, 0, MAX_PAIRS * sizeof(int)); // Reset seenInCurrentSample for the new sample
+        }
+
+        // Update the value for the current name in the current sample
+        strcpy(samples[currSampleNum].currSample[nameIdx], value);
+        // Update the last encountered value for this name
+        strcpy(lastValues[nameIdx], value);
+        // Mark this name as seen in the current sample
+        seenInCurrentSample[nameIdx] = 1;
+
+        // For all names we haven't seen in the current sample, use the last encountered value
+        for (int j = 0; j < numUniques; j++) {
+            if (!seenInCurrentSample[j]) {
+                strcpy(samples[currSampleNum].currSample[j], lastValues[j]);
+            }
+        }
     }
 
     for (int i = 1; i <= currSampleNum; i++) {
@@ -205,15 +180,36 @@ int main(int argc, char *argv[]) {
         printf("%s", "\n");
     }
 
-    // Write samples to the write buffer
-    writeToWriteBuffer(write_shared_data, samples, currSampleNum, numUniques, uniqueNames);
+    for (int i = 1; i <= currSampleNum; i++) {
+    char sampleData[MAX_NAME_LENGTH * MAX_PAIRS] = "";
+    for (int j = 0; j < numUniques; j++) {
+        strcat(sampleData, uniqueNames[j]);
+        strcat(sampleData, "=");
+        strcat(sampleData, samples[i].currSample[j]);
+        if (j < numUniques - 1) {
+            strcat(sampleData, ", ");
+        }
+    }
 
+    sem_wait(&write_shared_data->sem_empty);
+
+    sem_wait(&write_shared_data->sem_mutex);
+    sprintf(write_shared_data->buffer[write_shared_data->in], "%s", sampleData);
+    printf("Reconstruct write to buffer: %s\n", sampleData);
+    write_shared_data->in = (write_shared_data->in + 1) % write_shared_data->size;
+    sem_post(&write_shared_data->sem_mutex);
+    sem_post(&write_shared_data->sem_full);
+}
     // Change input done flag
     write_shared_data->input_done = 1;
+
+    printf("Reconstruct: end of input reached. Detaching from shared memory...\n");
+    free(nameValPairs);
+    free(lastValues);
+    free(seenInCurrentSample);
+    free(uniqueNames);
+    free(samples);
     // Detach from shared memory
-    if (input_args->buffer_type == "sync") {
-        pthread_mutex_unlock (&shared_data->mutex);
-    }
     if (shmdt(read_shared_data) == -1) {
         perror("shmdt");
         return 1;
