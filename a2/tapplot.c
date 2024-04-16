@@ -7,46 +7,116 @@
 #include <sys/wait.h>
 #include <getopt.h>
 #include <semaphore.h>
+#include <assert.h>
 
-// Structure for shared data
+#define MAX_STRING_SIZE 2056
+#define MAX_BUFFER_SIZE 50
+#define EMPTY "EMPTY"
+
+// 4-slot definitions
+typedef char data_t[MAX_STRING_SIZE];
+typedef enum {bit0=0, bit1=1} bit;
+
+// Shared data struct
 typedef struct {
-    char **buffer;   // Shared buffer
-    int in;        // Index for inserting into the buffer
-    int out;       // Index for removing from the buffer
-    int size;      // Size of the buffer
+    // Ring buffer variables, flag for ending, and semaphores
+    char buffer[MAX_BUFFER_SIZE][MAX_STRING_SIZE];
+    int in;
+    int out;
+    int size;
     sem_t sem_empty;
     sem_t sem_full;
+    sem_t sem_mutex;
     int input_done;
+    // 4-slot buffer variables
+    bit latest;
+    bit reading;
+    data_t buffer_4slot[2][2];
+    bit slot[2];
 } shared_data_t;
 
-// Function to check if the buffer is full from lecture
-int isFull(shared_data_t *shared_data) {
-    return (shared_data->in + 1) % shared_data->size == shared_data->out;
+// 4-slot buffer functions
+void bufwrite (shared_data_t *shared_data, char* item) {
+    bit pair, index;
+    pair = !shared_data->reading;
+    index = !shared_data->slot[pair];
+    strcpy(shared_data->buffer_4slot[pair][index], item);
+    shared_data->slot[pair] = index;
+    shared_data->latest = pair;
 }
 
-// Function to check if the buffer is empty from lecture
-int isEmpty(shared_data_t *shared_data) {
-    return shared_data->in == shared_data->out;
+char* bufread (shared_data_t *shared_data) {
+    printf("Tapplot bufread\n");
+    bit pair, index;
+    pair = shared_data->latest;
+    shared_data->reading = pair;
+    index = shared_data->slot[pair];
+    return (shared_data->buffer_4slot[pair][index]);
 }
 
 int main(int argc, char *argv[]) {
+    FILE *fp;
     int shm_id = atoi(argv[1]);
+    char *buffer_type = argv[2];
     int argn = argc > 3 ? atoi(argv[3]) : 1;
 
+    // Attach to the shared memory segment
     shared_data_t *shared_data = (shared_data_t *)shmat(shm_id, NULL, 0);
     if ((void *)shared_data == (void *)-1) {
         perror("shmat");
         return 1;
     }
 
-    // Loop to read from shared buffer and plot
-    while (1) {
-        sem_wait(&shared_data->sem_full);
-        char *data = shared_data->buffer[shared_data->out];
-        shared_data->out = (shared_data->out + 1) % shared_data->size;
-        sem_post(&shared_data->sem_empty);
+    // Open pipe to helper.pl
+    fp = popen("./helper.pl", "w");
+    if (fp == NULL) {
+        perror("popen");
+        return 1;
+    }
 
-        // Parse data to extract the required field based on argn
+    // Loop to read from shared buffer and write to pipe
+    while (1) {
+        // Move data definition to before the ifs, so we can access it after it's set
+        char *data;
+        // If buffer type is sync, initialize ring buffer read process
+        if(strcmp(buffer_type, "sync") == 0){
+            // Sleep for a tiny bit before checking the flag, otherwise we could
+            // get stuck if we wait for the semaphore after input_done is set
+            usleep(1000);
+
+            // Check if we're finished processing
+            int empty;
+            sem_getvalue(&shared_data->sem_full, &empty);
+            if (empty == 0 && shared_data->input_done) {
+                break;
+            }
+            
+            // Wait for the full semaphore
+            sem_wait(&shared_data->sem_full);
+
+            // Acquire the mutex to access the shared buffer
+            sem_wait(&shared_data->sem_mutex);
+
+            // Read data from the buffer
+            data = shared_data->buffer[shared_data->out];
+            printf("Tapplot read from buffer: %s\n", data);
+            shared_data->out = (shared_data->out + 1) % shared_data->size;
+
+            // Release the mutex and signal empty semaphore
+            sem_post(&shared_data->sem_mutex);
+            sem_post(&shared_data->sem_empty);
+
+        // If buffer type is async, enter async read process
+        } else{
+            // Read from the 4-slot buffer
+            data = bufread(shared_data);
+            // Check if all data has been processed by checking if we read "input_done"
+            if (strcmp(data, "input_done") == 0) {
+                break;
+            }
+        }
+
+        // Parse data and write to the pipe
         char *token = strtok(data, ",");
         int field_index = 0;
         char *plot_data = NULL;
@@ -59,27 +129,21 @@ int main(int argc, char *argv[]) {
             field_index++;
         }
 
-        // Plot the data using helper.py script
+        // Write data to the pipe
         if (plot_data != NULL) {
-            char arg_buffer[50];
-            snprintf(arg_buffer, sizeof(arg_buffer), "%d", atoi(plot_data));
-            execlp("python3", "python3", "helper.py", arg_buffer, NULL);
-            perror("execlp");
-            exit(EXIT_FAILURE);
-        }
-        int empty;
-        sem_getvalue(&shared_data->sem_full, &empty);
-        printf("Value of empty: %d, Value of input done: %d\n", empty, shared_data->input_done);
-        if (empty == 0 && shared_data->input_done) {
-            break;
+            fprintf(fp, "%s\n", plot_data);
+            fflush(fp);
         }
     }
 
+    // Close the pipe
+    pclose(fp);
+    printf("Tapplot: end of input reached. Detaching from shared memory...\n");
     // Detach shared memory
     if (shmdt(shared_data) == -1) {
         perror("shmdt");
         return 1;
     }
-
+    // Exit
     return 0;
 }

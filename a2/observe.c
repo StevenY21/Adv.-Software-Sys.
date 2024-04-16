@@ -30,9 +30,10 @@ typedef struct {
     int out;       // Index for removing from the buffer
     int size;      // Size of the buffer
     int input_done;
+    int count; //how many spots occupied in buffer
     pthread_mutex_t mutex;		/* Mutex for shared buffer.                        */
-    pthread_cond_t empty_cond;         /* Condition when >= 1 full buffer slots.          */
-    pthread_cond_t full_cond;            /* Condition when at least 1 empty mailbox slot.   */   
+    pthread_cond_t empty_cond;         
+    pthread_cond_t full_cond;             
 } shared_data_t;
 
 typedef struct {
@@ -52,15 +53,7 @@ int findPair(char* name) {
     }
     return -1;
 }
-// Function to check if the buffer is full from lecture
-int isFull(shared_data_t *shared_data) {
-    return (shared_data->in + 1) % shared_data->size == shared_data->out;
-}
 
-// Function to check if the buffer is empty from lecture
-int isEmpty(shared_data_t *shared_data) {
-    return shared_data->in == shared_data->out;
-}
 void observe(void *input) {
     printf("%s", "observing time\n");
     fn_args *input_args = (fn_args*) input;
@@ -75,7 +68,6 @@ void observe(void *input) {
         perror("Observe shmat");
         return;
     }
-    pthread_mutex_lock (&shared_data->mutex);
     // If there's a filename, open it for reading, otherwise set to stdin
     if (input_args->input_file != NULL) {
         file = fopen(input_args->input_file, "r");
@@ -87,8 +79,10 @@ void observe(void *input) {
         file = stdin;
     }
     // While there's input
+    printf("%s\n", "checking inputs");
     while (fgets(line, sizeof(line), file)) {
         // Use strtok to separate the name and value since we know the form of the data
+        printf("writing to buffer...\n");
         char* name = strtok(line, "=");
         char* value = strtok(NULL, "\n");
         // If we have both a name and value (correct formatting)
@@ -100,33 +94,52 @@ void observe(void *input) {
                 strcpy(pairs[pairCount].name, name);
                 strcpy(pairs[pairCount].value, value);
                 pairCount++;
-                while(isFull(shared_data)){
+                //sem_wait(&shared_data->sem_empty);
+                //sem_wait(&shared_data->sem_mutex);
+                //pthread_cond_wait (&shared_data->empty_cond, &shared_data->mutex);
+                pthread_mutex_lock (&shared_data->mutex);
+                while(shared_data->count >= shared_data->size){
+                    printf("waiting for an empty slot\n");
                     // wait until the buffer is not full before writing
-                    pthread_cond_wait (&shared_data->full_cond, &shared_data->mutex);
+                    pthread_cond_wait (&shared_data->empty_cond, &shared_data->mutex);
+                    printf("done with wait check count\n");
                 }
+                pthread_mutex_unlock (&shared_data->mutex);
+                pthread_mutex_lock (&shared_data->mutex);
                 sprintf(*(shared_data->buffer + shared_data->in), "%s=%s", name, value);
                 printf("Buffer: %s\n", *(shared_data->buffer + shared_data->in));
                 shared_data->in = (shared_data->in + 1) % shared_data->size;
+                shared_data->count++;
+                pthread_mutex_unlock (&shared_data->mutex);
+                pthread_cond_broadcast(&shared_data->full_cond);
             } else {
                 // If there is a match, check if the value differs
                 if (strcmp(pairs[index].value, value) != 0) {
                     // If it differs, update and write
                     strcpy(pairs[index].value, value);
-                    while(isFull(shared_data)){
-                        printf("Observe: buffer is full.\n");
+                    pthread_mutex_lock (&shared_data->mutex);
+                    while(shared_data->count >= shared_data->size){
+                        printf("waiting for an empty slot\n");
+                        pthread_cond_wait (&shared_data->empty_cond, &shared_data->mutex);
                     }
+                    pthread_mutex_unlock (&shared_data->mutex);
+                    pthread_mutex_lock (&shared_data->mutex);
                     sprintf(*(shared_data->buffer + shared_data->in), "%s=%s", name, value);
                     printf("Buffer: %s\n", *(shared_data->buffer + shared_data->in));
                     shared_data->in = (shared_data->in + 1) % shared_data->size;
+                    shared_data->count++;
+                    pthread_mutex_unlock (&shared_data->mutex);
+                    pthread_cond_broadcast(&shared_data->full_cond);
                 }
             }
         }
     }
+    // buffer inputting is done
+    shared_data->input_done = 1;
     // If we were using file for input, close it
     if (input_args->input_file != NULL) {
         fclose(file);
     }
-    pthread_mutex_unlock (&shared_data->mutex);
     printf("Observe: end of input reached. Detaching from shared memory...\n");
     // detach from shared memory
     if (shmdt(shared_data) == -1) {

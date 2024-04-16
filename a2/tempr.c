@@ -92,15 +92,12 @@ void reconstruct(void *input) {
         while(read_shared_data->count <= 0){
             printf("waiting for a filled slot\n");
             pthread_cond_wait (&read_shared_data->full_cond, &read_shared_data->mutex);
-            printf("done with wait check count\n");
         }
-        pthread_mutex_unlock (&read_shared_data->mutex);
         //sem_wait(&read_shared_data->sem_full);
 
         //sem_wait(&read_shared_data->sem_mutex);
 
         // Read from the buffer
-        pthread_mutex_lock (&read_shared_data->mutex);
         char *data = read_shared_data->buffer[read_shared_data->out];
         if (sscanf(data, "%[^=]=%[^\n]", name, value) == 2) {
             printf("Reconstruct read from buffer: Name=%s, Value=%s\n", name, value);
@@ -137,7 +134,6 @@ void reconstruct(void *input) {
             printf("count %d\n", read_shared_data->count);
             pthread_mutex_unlock( &read_shared_data->mutex);
         }
-        printf("broadcasting signal\n");
         pthread_cond_broadcast(&read_shared_data->empty_cond);
         //sem_post(&read_shared_data->sem_empty);
     }

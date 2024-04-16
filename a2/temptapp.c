@@ -151,18 +151,17 @@ int main(int argc, char *argv[]) {
             arguments->shm_id_str_write = shm_id_str_write;
             arguments->shm_id_str_read = shm_id_str_read;
         }
-        printf("creating thread %s\n", task_names[i]);
+        //printf("creating thread %s\n", task_names[i]);
         if (pthread_create(&task_threads[i], NULL, (void *(*)(void *))fn, (void *)arguments) != 0) {
             perror("thread creation failed");
             exit(1);
         }
-        sleep(1);
     }
     //not 100% sure if i need
     printf("joining threads %d numtasks\n", num_tasks);
-    for(int i = 0; i < num_tasks; i++) {
-        pthread_join(task_threads[i], NULL);
-    }
+    //for(int i = 0; i < num_tasks; i++) {
+    //    pthread_join(task_threads[i], NULL);
+    //}
     for (int i = 0; i < num_tasks; i++) {
         printf("destroying pthread mutexes and conds for %d\n", i);
         pthread_mutex_destroy (&shared_data[i]->mutex);
