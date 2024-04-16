@@ -8,6 +8,7 @@
 #include <getopt.h>
 #include <assert.h>
 #include <semaphore.h>
+#include <sched.h>
 
 #define MAX_NAME_LENGTH 50
 #define MAX_VALUE_LENGTH 50

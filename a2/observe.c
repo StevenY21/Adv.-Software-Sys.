@@ -7,6 +7,8 @@
 #include <sys/wait.h>
 #include <getopt.h>
 #include <semaphore.h>
+#include <sched.h>
+
 #define MAX_LINE_LENGTH 2056
 #define MAX_NAME_VALUE_PAIRS 1000
 #define MAX_STRING_SIZE 2056

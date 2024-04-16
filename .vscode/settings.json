@@ -11,6 +11,7 @@
         "ipc.h": "c",
         "string.h": "c",
         "semaphore.h": "c",
-        "assert.h": "c"
+        "assert.h": "c",
+        "sched.h": "c"
     }
 }

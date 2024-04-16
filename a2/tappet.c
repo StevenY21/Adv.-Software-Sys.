@@ -167,6 +167,9 @@ int main(int argc, char *argv[]) {
             perror("thread creation failed");
             exit(1);
         }
+        if(strcmp(buffer_type, "sync") == 0) {
+            sleep(1);
+        }
     }
     //not 100% sure if i need
     printf("joining threads %d numtasks\n", num_tasks);

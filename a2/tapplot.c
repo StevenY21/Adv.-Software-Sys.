@@ -9,6 +9,7 @@
 #include <getopt.h>
 #include <semaphore.h>
 #include <assert.h>
+#include <sched.h>
 
 #define MAX_STRING_SIZE 2056
 #define MAX_BUFFER_SIZE 50
@@ -41,6 +42,7 @@ typedef struct {
     char *buffer_type;
     char *argn;
 } fn_args;
+
 // 4-slot buffer functions
 void bufwrite (shared_data_t *shared_data, char* item) {
     bit pair, index;
