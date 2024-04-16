@@ -8,22 +8,22 @@
 #include <getopt.h>
 #include <string.h>
 #include <pthread.h>
-
+#include <semaphore.h>
 #define MAX_STRING_SIZE 2056
 #define MAX_BUFFER_SIZE 50
 #define MAX_THREADS 100
 #define BUFFER_SIZE   2
 
 typedef struct {
-    char buffer[MAX_BUFFER_SIZE][MAX_STRING_SIZE];   // Shared buffer
-    int in;        // Index for inserting into the buffer
-    int out;       // Index for removing from the buffer
-    int size;      // Size of the buffer
+    // We have the buffer, the in and out indices, the size, the empty and full semaphores, and the input_done flag
+    char buffer[MAX_BUFFER_SIZE][MAX_STRING_SIZE];
+    int in;
+    int out;
+    int size;
+    sem_t sem_empty;
+    sem_t sem_full;
+    sem_t sem_mutex;
     int input_done;
-    int count; //how many spots occupied in buffer
-    pthread_mutex_t mutex;		/* Mutex for shared buffer.                        */
-    pthread_cond_t empty_cond;         /* Condition when >= 1 full buffer slots.          */
-    pthread_cond_t full_cond;            /* Condition when at least 1 empty mailbox slot.   */   
 } shared_data_t;
 typedef struct {
   char *data;			/* Slot data.                            */
@@ -47,15 +47,20 @@ int main(int argc, char *argv[]) {
     char *input_file = NULL;
     char *last_program = NULL;
     int c;
-    while ((c = getopt (argc, argv, "b:s:p:")) != -1) {// checking the options and sending errors if invalid options found
+    while ((c = getopt (argc, argv, "b:s:t:")) != -1) {// checking the options and sending errors if invalid options found
         switch (c)
         {
-        case 'p':
+        case 'b':
+            buffer_type = optarg;
+        case 's':
+            buffer_size = atoi(optarg);
+            break;
+        case 't':
             if(optind < argc) {
-                task_names[num_tasks] = optarg;
+                task_names[num_tasks] = argv[optind];
                 printf("%s\n", task_names[num_tasks]);
                 num_tasks++;
-                last_program = optarg;
+                last_program = argv[optind];
                 // if there's an input filename given after observe, get it
                 if (strcmp(optarg, "observe") == 0 && optind < argc && argv[optind][0] != '-') {
                     input_file = argv[optind];
@@ -63,11 +68,6 @@ int main(int argc, char *argv[]) {
                 }
                 break;
             }
-        case 'b':
-            buffer_type = optarg;
-        case 's':
-            buffer_size = atoi(optarg);
-            break;
         }
     }
     if (last_program != NULL) { //for getting argn value
@@ -79,7 +79,7 @@ int main(int argc, char *argv[]) {
         }
     }
     printf("buffer type %s\n", buffer_type);
-    int num_buffers = (num_tasks/2) + 1;
+    int num_buffers = num_tasks;
     int shm_ids[num_buffers];
     shared_data_t *shared_data[num_buffers];
     pthread_t task_threads[num_buffers];
@@ -100,12 +100,14 @@ int main(int argc, char *argv[]) {
         shared_data[i]->out = 0;
         shared_data[i]->size = buffer_size;
         shared_data[i]->input_done = 0;
-        shared_data[i]->count = 0;
+        //shared_data[i]->count = 0;
         printf("Tapper assigned buffer address: %p\n", shared_data[i]->buffer);
-        pthread_mutex_init (&shared_data[i]->mutex, NULL);
-        pthread_cond_init (&shared_data[i]->empty_cond, NULL);
-        pthread_cond_init (&shared_data[i]->full_cond, NULL);
-
+        //pthread_mutex_init (&shared_data[i]->mutex, NULL);
+        //pthread_cond_init (&shared_data[i]->empty_cond, NULL);
+        //pthread_cond_init (&shared_data[i]->full_cond, NULL);
+        sem_init(&shared_data[i]->sem_empty, 1, shared_data[i]->size);
+        sem_init(&shared_data[i]->sem_full, 1, 0);
+        sem_init(&shared_data[i]->sem_mutex, 1, 1);
     }
     for (int i = 0; i < num_tasks; i++) {
         fprintf(stderr, "%s", "getting thread args\n");
@@ -161,13 +163,16 @@ int main(int argc, char *argv[]) {
     //not 100% sure if i need
     printf("joining threads %d numtasks\n", num_tasks);
     for(int i = 0; i < num_tasks; i++) {
+        printf("joining thread %d\n", i);
         pthread_join(task_threads[i], NULL);
+        printf("done joining thread %d\n", i);
     }
+    printf("destroying mutexes and conds and segments\n");
     for (int i = 0; i < num_tasks; i++) {
         printf("destroying pthread mutexes and conds for %d\n", i);
-        pthread_mutex_destroy (&shared_data[i]->mutex);
-        pthread_cond_destroy (&shared_data[i]->empty_cond);
-        pthread_cond_destroy (&shared_data[i]->full_cond);
+        //pthread_mutex_destroy (&shared_data[i]->mutex);
+        //pthread_cond_destroy (&shared_data[i]->empty_cond);
+        //pthread_cond_destroy (&shared_data[i]->full_cond);
         printf("detaching segments for %d\n", i);
         if (shmdt(shared_data[i]) == -1) {
             perror("shmdt");
@@ -177,6 +182,9 @@ int main(int argc, char *argv[]) {
             perror("shmctl");
             exit(1);
         }
+        sem_destroy(&shared_data[i]->sem_empty);
+        sem_destroy(&shared_data[i]->sem_full);
+        sem_destroy(&shared_data[i]->sem_mutex);
     }
     return 0;
 

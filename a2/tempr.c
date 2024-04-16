@@ -83,21 +83,28 @@ void reconstruct(void *input) {
         printf("reading from buffer...\n");
         char name[MAX_NAME_LENGTH];
         char value[MAX_VALUE_LENGTH];
+        printf("locking mutex\n");
         pthread_mutex_lock (&read_shared_data->mutex);
+        printf("mutex locked\n");
         //int empty;
         //sem_getvalue(&read_shared_data->sem_full, &empty);
         if (read_shared_data->count == 0 && read_shared_data->input_done) {
             break;
         }
         while(read_shared_data->count <= 0){
+            printf("signalling buffer is empty\n");
+            pthread_cond_broadcast(&read_shared_data->empty_cond);
             printf("waiting for a filled slot\n");
             pthread_cond_wait (&read_shared_data->full_cond, &read_shared_data->mutex);
+            printf("done with wait check count\n");
         }
+        //pthread_mutex_unlock (&read_shared_data->mutex);
         //sem_wait(&read_shared_data->sem_full);
 
         //sem_wait(&read_shared_data->sem_mutex);
 
         // Read from the buffer
+        //pthread_mutex_lock (&read_shared_data->mutex);
         char *data = read_shared_data->buffer[read_shared_data->out];
         if (sscanf(data, "%[^=]=%[^\n]", name, value) == 2) {
             printf("Reconstruct read from buffer: Name=%s, Value=%s\n", name, value);
@@ -132,8 +139,11 @@ void reconstruct(void *input) {
             //sem_post(&read_shared_data->sem_mutex);
             read_shared_data->count--;
             printf("count %d\n", read_shared_data->count);
+            printf("unlocking mutex\n");
             pthread_mutex_unlock( &read_shared_data->mutex);
+            printf("mutex unlocked\n");
         }
+        printf("broadcasting signal\n");
         pthread_cond_broadcast(&read_shared_data->empty_cond);
         //sem_post(&read_shared_data->sem_empty);
     }

@@ -3,7 +3,7 @@
 open my $GNUPLOT, "|/usr/bin/gnuplot -persist 2>/dev/null";
 open my $PLOTDATA, ">>plot.dat";
 
-#Initialize x and y label
+#Initialize x and y axis labels, leave y blank since its yet to be assigned
 my $xlabel = "Sample #";
 my $ylabel = "";
 

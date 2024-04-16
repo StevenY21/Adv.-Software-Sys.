@@ -8,7 +8,6 @@
 #include <getopt.h>
 #include <assert.h>
 #include <semaphore.h>
-#include <pthread.h>
 
 #define MAX_NAME_LENGTH 50
 #define MAX_VALUE_LENGTH 50
@@ -33,14 +32,10 @@ typedef struct {
     int in;
     int out;
     int size;
-    //sem_t sem_empty;
-    //sem_t sem_full;
-    //sem_t sem_mutex;
+    sem_t sem_empty;
+    sem_t sem_full;
+    sem_t sem_mutex;
     int input_done;
-    int count; //how many spots occupied in buffer
-    pthread_mutex_t mutex;		/* Mutex for shared buffer.                        */
-    pthread_cond_t empty_cond;         
-    pthread_cond_t full_cond;             
 } shared_data_t;
 typedef struct {
     char *shm_id_str_read;
@@ -48,26 +43,24 @@ typedef struct {
     char *input_file;
     char *buffer_type;
     char *argn;
-} fn_args; // all of the arguments needed for observe, reconstruct, and tapplot
-
-void reconstruct(void *input) {
-    printf("%s", "reconstruct time\n");
+} fn_args;
+void reconstruct(void* input) {
     fn_args *input_args = (fn_args*) input;
     int read_shm_id = atoi(input_args->shm_id_str_read);
     int write_shm_id = atoi(input_args->shm_id_str_write);
-    fprintf(stderr,"Attaching to shared memory segment ID: %d\n", read_shm_id);
-    printf("getting buffer to read from\n");
+    
     shared_data_t *read_shared_data = (shared_data_t *)shmat(read_shm_id, NULL, 0);
     if ((void *)read_shared_data == (void *)-1) {
         perror("shmat");
         return;
     }
-    printf("getting buffer to write from\n");
+
     shared_data_t *write_shared_data = (shared_data_t *)shmat(write_shm_id, NULL, 0);
     if ((void *)write_shared_data == (void *)-1) {
         perror("shmat");
         return;
     }
+
     NameVal* nameValPairs = (NameVal*) malloc(MAX_PAIRS * sizeof(NameVal));
     int numPairs = 0;
     int numUniques = 0;
@@ -78,29 +71,21 @@ void reconstruct(void *input) {
     char (*uniqueNames)[MAX_NAME_LENGTH] = malloc(MAX_PAIRS * sizeof(*uniqueNames));
 
     // Getting all the name value pairs set up, as well as checking the number of unique names
-    printf("beginning reconstruct loop\n");
     while(1) {
-        printf("reading from buffer...\n");
         char name[MAX_NAME_LENGTH];
         char value[MAX_VALUE_LENGTH];
-        pthread_mutex_lock (&read_shared_data->mutex);
-        //int empty;
-        //sem_getvalue(&read_shared_data->sem_full, &empty);
-        if (read_shared_data->count == 0 && read_shared_data->input_done) {
+        usleep(1000);
+        int empty;
+        sem_getvalue(&read_shared_data->sem_full, &empty);
+        if (empty == 0 && read_shared_data->input_done) {
             break;
         }
-        while(read_shared_data->count <= 0){
-            printf("waiting for a filled slot\n");
-            pthread_cond_wait (&read_shared_data->full_cond, &read_shared_data->mutex);
-            printf("done with wait check count\n");
-        }
-        pthread_mutex_unlock (&read_shared_data->mutex);
-        //sem_wait(&read_shared_data->sem_full);
 
-        //sem_wait(&read_shared_data->sem_mutex);
+        sem_wait(&read_shared_data->sem_full);
+
+        sem_wait(&read_shared_data->sem_mutex);
 
         // Read from the buffer
-        pthread_mutex_lock (&read_shared_data->mutex);
         char *data = read_shared_data->buffer[read_shared_data->out];
         if (sscanf(data, "%[^=]=%[^\n]", name, value) == 2) {
             printf("Reconstruct read from buffer: Name=%s, Value=%s\n", name, value);
@@ -132,14 +117,9 @@ void reconstruct(void *input) {
             }
             // Move to the next position in the buffer
             read_shared_data->out = (read_shared_data->out + 1) % read_shared_data->size;
-            //sem_post(&read_shared_data->sem_mutex);
-            read_shared_data->count--;
-            printf("count %d\n", read_shared_data->count);
-            pthread_mutex_unlock( &read_shared_data->mutex);
+            sem_post(&read_shared_data->sem_mutex);
         }
-        printf("broadcasting signal\n");
-        pthread_cond_broadcast(&read_shared_data->empty_cond);
-        //sem_post(&read_shared_data->sem_empty);
+        sem_post(&read_shared_data->sem_empty);
     }
 
     printf("%-20s", "Sample #");
@@ -210,20 +190,19 @@ void reconstruct(void *input) {
             strcat(sampleData, ", ");
         }
     }
-    //pthread_cond_wait(&write_shared_data->empty_cond, &write_shared_data->mutex);
-    //sem_wait(&write_shared_data->sem_empty);
-    pthread_mutex_lock(&write_shared_data->mutex);
-    //sem_wait(&write_shared_data->sem_mutex);
+
+    sem_wait(&write_shared_data->sem_empty);
+
+    sem_wait(&write_shared_data->sem_mutex);
     sprintf(write_shared_data->buffer[write_shared_data->in], "%s", sampleData);
     printf("Reconstruct write to buffer: %s\n", sampleData);
     write_shared_data->in = (write_shared_data->in + 1) % write_shared_data->size;
-    pthread_mutex_unlock(&write_shared_data->mutex);
-    //sem_post(&write_shared_data->sem_mutex);
-    //pthread_cond_broadcast(&write_shared_data->full_cond);
-    //sem_post(&write_shared_data->sem_full);
-    }
+    sem_post(&write_shared_data->sem_mutex);
+    sem_post(&write_shared_data->sem_full);
+}
     // Change input done flag
     write_shared_data->input_done = 1;
+
     printf("Reconstruct: end of input reached. Detaching from shared memory...\n");
     free(nameValPairs);
     free(lastValues);
