@@ -103,19 +103,27 @@ int main(int argc, char *argv[]) {
             perror("shmat");
             exit(1);
         }
-        printf("Shared memory segment %d created with ID %d at location %p\n", i, shm_ids[i], shared_data[i]);
-        shared_data[i]->in = 0;
-        shared_data[i]->out = 0;
-        shared_data[i]->size = buffer_size;
-        shared_data[i]->input_done = 0;
-        //shared_data[i]->count = 0;
-        printf("Tapper assigned buffer address: %p\n", shared_data[i]->buffer);
-        //pthread_mutex_init (&shared_data[i]->mutex, NULL);
-        //pthread_cond_init (&shared_data[i]->empty_cond, NULL);
-        //pthread_cond_init (&shared_data[i]->full_cond, NULL);
-        sem_init(&shared_data[i]->sem_empty, 1, shared_data[i]->size);
-        sem_init(&shared_data[i]->sem_full, 1, 0);
-        sem_init(&shared_data[i]->sem_mutex, 1, 1);
+        if(strcmp(buffer_type, "async") == 0){
+            // 4-slot buffer initialization
+            shared_data[i]->latest = 0;
+            shared_data[i]->reading = 0;
+            strncpy(shared_data[i]->buffer_4slot[0][0], EMPTY, MAX_STRING_SIZE);
+            strncpy(shared_data[i]->buffer_4slot[0][1], EMPTY, MAX_STRING_SIZE);
+            strncpy(shared_data[i]->buffer_4slot[1][0], EMPTY, MAX_STRING_SIZE);
+            strncpy(shared_data[i]->buffer_4slot[1][1], EMPTY, MAX_STRING_SIZE);
+            shared_data[i]->slot[0] = 0;
+            shared_data[i]->slot[1] = 0;
+        }else{
+            // Ring buffer initialization
+            shared_data[i]->in = 0;
+            shared_data[i]->out = 0;
+            shared_data[i]->size = buffer_size;
+            shared_data[i]->input_done = 0;
+            // Initialize the empty and full semaphores + the mutex (we only need these for synchronous buffer)
+            sem_init(&shared_data[i]->sem_empty, 1, shared_data[i]->size);
+            sem_init(&shared_data[i]->sem_full, 1, 0);
+            sem_init(&shared_data[i]->sem_mutex, 1, 1);
+        }
     }
     for (int i = 0; i < num_tasks; i++) {
         fprintf(stderr, "%s", "getting thread args\n");
@@ -174,9 +182,11 @@ int main(int argc, char *argv[]) {
         //pthread_mutex_destroy (&shared_data[i]->mutex);
         //pthread_cond_destroy (&shared_data[i]->empty_cond);
         //pthread_cond_destroy (&shared_data[i]->full_cond);
-        sem_destroy(&shared_data[i]->sem_empty);
-        sem_destroy(&shared_data[i]->sem_full);
-        sem_destroy(&shared_data[i]->sem_mutex);
+        if(strcmp(buffer_type, "sync") == 0){
+            sem_destroy(&shared_data[i]->sem_empty);
+            sem_destroy(&shared_data[i]->sem_full);
+            sem_destroy(&shared_data[i]->sem_mutex);
+        }
         printf("detaching segments for %d\n", i);
         if (shmdt(shared_data[i]) == -1) {
             perror("shmdt");
