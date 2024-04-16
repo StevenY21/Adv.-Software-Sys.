@@ -118,11 +118,10 @@ void tapplot(void *input) {
         } else{
             // Read from the 4-slot buffer
             data = bufread(shared_data);
-            for (int j = 0; j < DELAY; j++){
-                    int success = sched_yield ();
-                    if (success != 0) {
-                        perror("sched_yield");
-                    }
+            for (int j = 0; j < DELAY; j++);
+            int success = sched_yield();
+            if (success != 0) {
+                perror("sched_yield");
             }
             // Check if all data has been processed by checking if we read "input_done"
             if (strcmp(data, "reconstruct_input_done") == 0) {

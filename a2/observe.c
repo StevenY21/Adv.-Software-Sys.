@@ -125,11 +125,10 @@ void observe(void* input) {
                     char pair[MAX_STRING_SIZE];
                     snprintf(pair, MAX_STRING_SIZE, "%s=%s", name, value);
                     obsBufWrite(shared_data, pair);
-                    for (int j = 0; j < DELAY; j++){
-                            int success = sched_yield();
-                            if (success != 0) {
-                                perror("sched_yield");
-                            }
+                    for (int j = 0; j < DELAY; j++);
+                    int success = sched_yield();
+                    if (success != 0) {
+                        perror("sched_yield");
                     }
                     printf("Observe write to 4-slot buffer: %s\n", pair);
                 // If sync, use ring buffer write
@@ -151,12 +150,11 @@ void observe(void* input) {
                         char pair[MAX_STRING_SIZE];
                         snprintf(pair, MAX_STRING_SIZE, "%s=%s", name, value);
                         obsBufWrite(shared_data, pair);
-                        for (int j = 0; j < DELAY; j++){
-                            int success = sched_yield();
-                            if (success != 0) {
-                                perror("sched_yield");
-                            }
-                        } /* Add some delay. */
+                        for (int j = 0; j < DELAY; j++);
+                        int success = sched_yield();
+                        if (success != 0) {
+                            perror("sched_yield");
+                        }
                         printf("Observe write to 4-slot buffer: %s\n", pair);
                     // If sync, use ring buffer write
                     } else{
@@ -177,11 +175,10 @@ void observe(void* input) {
     // Signal input done, with either writing a special string for 4-slot or setting the flag for ring
     if(strcmp(buffer_type, "async") == 0){
         obsBufWrite(shared_data, "observe_input_done");
-        for (int j = 0; j < DELAY; j++){
-            int success = sched_yield();
-            if (success != 0) {
-                perror("sched_yield");
-            }
+        for (int j = 0; j < DELAY; j++);
+        int success = sched_yield();
+        if (success != 0) {
+            perror("sched_yield");
         }
     } else{
         shared_data->input_done = 1;
