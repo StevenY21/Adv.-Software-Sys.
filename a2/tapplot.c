@@ -13,11 +13,10 @@
 #define MAX_STRING_SIZE 2056
 #define MAX_BUFFER_SIZE 50
 #define EMPTY "EMPTY"
-
+#define DELAY 1E4
 // 4-slot definitions
 typedef char data_t[MAX_STRING_SIZE];
 typedef enum {bit0=0, bit1=1} bit;
-
 // Shared data struct
 typedef struct {
     // Ring buffer variables, flag for ending, and semaphores
@@ -117,6 +116,12 @@ void tapplot(void *input) {
         } else{
             // Read from the 4-slot buffer
             data = bufread(shared_data);
+            for (int j = 0; j < DELAY; j++){
+                    int success = sched_yield ();
+                    if (success != 0) {
+                        perror("sched_yield");
+                    }
+            }
             // Check if all data has been processed by checking if we read "input_done"
             if (strcmp(data, "reconstruct_input_done") == 0) {
                 break;

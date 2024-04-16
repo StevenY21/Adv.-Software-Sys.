@@ -7,7 +7,6 @@
 #include <sys/wait.h>
 #include <getopt.h>
 #include <semaphore.h>
-
 #define MAX_LINE_LENGTH 2056
 #define MAX_NAME_VALUE_PAIRS 1000
 #define MAX_STRING_SIZE 2056
@@ -27,6 +26,7 @@ int pairCount = 0;
 // 4-slot definitions
 typedef char data_t[MAX_STRING_SIZE];
 typedef enum {bit0=0, bit1=1} bit;
+#define DELAY 1E4
 
 typedef struct {
     // Ring buffer variables, flag for ending, and semaphores
@@ -123,6 +123,12 @@ void observe(void* input) {
                     char pair[MAX_STRING_SIZE];
                     snprintf(pair, MAX_STRING_SIZE, "%s=%s", name, value);
                     obsBufWrite(shared_data, pair);
+                    for (int j = 0; j < DELAY; j++){
+                            int success = sched_yield();
+                            if (success != 0) {
+                                perror("sched_yield");
+                            }
+                    }
                     printf("Observe write to 4-slot buffer: %s\n", pair);
                 // If sync, use ring buffer write
                 } else{
@@ -143,6 +149,12 @@ void observe(void* input) {
                         char pair[MAX_STRING_SIZE];
                         snprintf(pair, MAX_STRING_SIZE, "%s=%s", name, value);
                         obsBufWrite(shared_data, pair);
+                        for (int j = 0; j < DELAY; j++){
+                            int success = sched_yield();
+                            if (success != 0) {
+                                perror("sched_yield");
+                            }
+                        } /* Add some delay. */
                         printf("Observe write to 4-slot buffer: %s\n", pair);
                     // If sync, use ring buffer write
                     } else{
@@ -163,6 +175,12 @@ void observe(void* input) {
     // Signal input done, with either writing a special string for 4-slot or setting the flag for ring
     if(strcmp(buffer_type, "async") == 0){
         obsBufWrite(shared_data, "observe_input_done");
+        for (int j = 0; j < DELAY; j++){
+            int success = sched_yield();
+            if (success != 0) {
+                perror("sched_yield");
+            }
+        }
     } else{
         shared_data->input_done = 1;
     }

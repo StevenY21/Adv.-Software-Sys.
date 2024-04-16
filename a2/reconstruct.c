@@ -16,7 +16,7 @@
 #define MAX_STRING_SIZE 2056
 #define MAX_BUFFER_SIZE 50
 #define EMPTY "EMPTY"
-
+#define DELAY 1E4
 typedef struct {
     char name[MAX_NAME_LENGTH];
     char value[MAX_VALUE_LENGTH];
@@ -171,6 +171,12 @@ void reconstruct(void* input) {
         } else{
             // Read from the 4-slot buffer
             char *data = recBufread(read_shared_data);
+            for (int j = 0; j < DELAY; j++){
+                    int success = sched_yield();
+                    if (success != 0) {
+                        perror("sched_yield");
+                    }
+            }
             // Check if all data has been processed by checking if we read "input_done"
             if (strcmp(data, "observe_input_done") == 0) {
                 break;
@@ -308,6 +314,12 @@ void reconstruct(void* input) {
         // If it's asynchronous, start 4-slot buffer write process
         else{
             recBufwrite(write_shared_data, sampleData);
+            for (int j = 0; j < DELAY; j++){
+                    int success = sched_yield();
+                    if (success != 0) {
+                        perror("sched_yield");
+                    }
+            }
             printf("Reconstruct write to 4-slot buffer: %s\n", sampleData);
         }
     }
@@ -315,6 +327,12 @@ void reconstruct(void* input) {
     // Signal input done, with either writing a special string for 4-slot or setting the flag for ring
     if(strcmp(buffer_type, "async") == 0){
         recBufwrite(write_shared_data, "reconstruct_input_done");
+        for (int j = 0; j < DELAY; j++){
+                int success = sched_yield();
+                if (success != 0) {
+                    perror("sched_yield");
+                }
+        }
     } else{
         write_shared_data->input_done = 1;
     }
