@@ -10,6 +10,7 @@
         "wait.h": "c",
         "ipc.h": "c",
         "string.h": "c",
-        "semaphore.h": "c"
+        "semaphore.h": "c",
+        "assert.h": "c"
     }
 }

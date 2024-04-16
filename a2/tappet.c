@@ -9,13 +9,22 @@
 #include <string.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <assert.h>
 #define MAX_STRING_SIZE 2056
 #define MAX_BUFFER_SIZE 50
 #define MAX_THREADS 100
 #define BUFFER_SIZE   2
+#define MAX_STRING_SIZE 2056
+#define MAX_BUFFER_SIZE 50
+#define EMPTY "EMPTY"
 
+// 4-slot definitions
+typedef char data_t[MAX_STRING_SIZE];
+typedef enum {bit0=0, bit1=1} bit;
+
+// Shared data struct
 typedef struct {
-    // We have the buffer, the in and out indices, the size, the empty and full semaphores, and the input_done flag
+    // Ring buffer variables, flag for ending, and semaphores
     char buffer[MAX_BUFFER_SIZE][MAX_STRING_SIZE];
     int in;
     int out;
@@ -24,26 +33,25 @@ typedef struct {
     sem_t sem_full;
     sem_t sem_mutex;
     int input_done;
+    // 4-slot buffer variables
+    bit latest;
+    bit reading;
+    data_t buffer_4slot[2][2];
+    bit slot[2];
 } shared_data_t;
-typedef struct {
-  char *data;			/* Slot data.                            */
-  size_t size;			/* Size of data.                         */
-  pthread_t id;			/* ID of destination thread.             */
-
-} slot_t;
 typedef struct {
     char *shm_id_str_read;
     char *shm_id_str_write;
     char *input_file;
     char *buffer_type;
     char *argn;
-} fn_args; // all of the arguments needed for observe, reconstruct, and tapplot
+} fn_args;
 int main(int argc, char *argv[]) {
     char *task_names[MAX_THREADS];
     int num_tasks = 0;
     char *buffer_type = NULL;
     int buffer_size = 0;
-    char *argn = "1\0";
+    char *argn = "1";
     char *input_file = NULL;
     char *last_program = NULL;
     int c;
@@ -117,13 +125,6 @@ int main(int argc, char *argv[]) {
         arguments->buffer_type = buffer_type;
 
         arguments->argn = argn;
-        //getting lib func
-        // don't forget
-        /*
-        LD_LIBRARY_PATH=/full/path/to/library/directory:${LD_LIBRARY_PATH}
-        export LD_LIBRARY_PATH
-        
-        */
         void (*fn)(void*);
         void *libtap =dlopen("libtap.so", RTLD_LAZY); 
         if (libtap == NULL) {
@@ -173,6 +174,9 @@ int main(int argc, char *argv[]) {
         //pthread_mutex_destroy (&shared_data[i]->mutex);
         //pthread_cond_destroy (&shared_data[i]->empty_cond);
         //pthread_cond_destroy (&shared_data[i]->full_cond);
+        sem_destroy(&shared_data[i]->sem_empty);
+        sem_destroy(&shared_data[i]->sem_full);
+        sem_destroy(&shared_data[i]->sem_mutex);
         printf("detaching segments for %d\n", i);
         if (shmdt(shared_data[i]) == -1) {
             perror("shmdt");
@@ -182,9 +186,6 @@ int main(int argc, char *argv[]) {
             perror("shmctl");
             exit(1);
         }
-        sem_destroy(&shared_data[i]->sem_empty);
-        sem_destroy(&shared_data[i]->sem_full);
-        sem_destroy(&shared_data[i]->sem_mutex);
     }
     return 0;
 
