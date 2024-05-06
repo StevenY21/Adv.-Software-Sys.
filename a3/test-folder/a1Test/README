@@ -1,0 +1,18 @@
+# Assignment 0
+Compiling: After getting into the folder, run make, it should compile everything.
+
+Testing: I used the file called test. The stats have been manually produced with something like ./program_name insert_args >> stats.
+Note: Do $cat stats to see the stats without any weird symbols popping up. Also getcopy is not in stats as the main output is sent to text-output
+
+Using the programs:
+./getsections insert_filename
+./getsections_dl insert_filename insert_flagname*
+./getsyms insert_filename
+./getsyms_dl insert_filename insert_flagname*
+./getcopy insert_filename
+./getcopy_dl insert_filename insert_flagname*
+* The flagname and filenames are interchangeable, just type the flagname like a regular word like RTLD_LAZY and RTLD_NOW.
+
+Don't forget to run export LD_LIBRARY_PATH=/full/path/to/library/directory:${LD_LIBRARY_PATH} in order for the libraries to work.
+
+Configuration: 4 core, 8 processor, 2419.196 MHz, Intel Processor.

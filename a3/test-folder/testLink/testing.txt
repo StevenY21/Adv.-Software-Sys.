@@ -1,0 +1,10 @@
+HI 
+this is a test folder
+Random key words:
+std...
+.h 
+test test test
+getcopy
+stdio
+io 
+stio

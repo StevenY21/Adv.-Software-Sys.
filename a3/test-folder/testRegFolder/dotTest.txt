@@ -1,0 +1,13 @@
+baab
+a b
+aaaaab
+
+a c
+abb
+#include <stdio.h>
+b
+
+aaaaab
+abb
+aabc
+abc

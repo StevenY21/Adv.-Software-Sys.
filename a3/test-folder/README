@@ -1,0 +1,5 @@
+Assignment 1:
+Only has the finds program. The finds program can, as of right now, only support the '.', '?', and '*' wildcards inside the string expression. 
+I am not certain if my wildcard implementations work 100% of the time.
+The structure of the cmd is ./finds -p pathname [-f c|h|S] [-l] -s s
+A makefile is also included, just run make it will compile the finds program.

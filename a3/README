@@ -1,0 +1,13 @@
+# Assignment 3  
+## Setup  
+Just run make in terminal
+## Requests  
+The webserver can work for the following requests:  
+localhost:port-number/request.jpg  
+localhost:port-number/request.gif  
+localhost:port-number/request.cgi  
+localhost:port-number/my-histogram directory  
+
+## my-histogram note
+You might need to install the python library matplotlib, and maybe the other imported libraries as well for it to work
+ENJOY!
