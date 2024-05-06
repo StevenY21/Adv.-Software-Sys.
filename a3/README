@@ -13,4 +13,6 @@ The webserver can work for the following requests:
 Yes there's a space in the my-histogram request. 
 Note: directory names that have / might be a little funky. Doing ./.. would mess up the url, but doing something like dir1/dir2 would not generate the histogram on the browser, but would generate the jpg in the folder. Just stick with directories that can immediately found in the directory the webserver is in.
 
+##Please look into directory issue mentioned above, as well as help me find a more graceful way to exit when running my-histogram but providing a directory TY
+
 #ENJOY!

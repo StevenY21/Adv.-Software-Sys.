@@ -1,10 +1,3 @@
-#!/usr/bin/python3
-print ('''<html>
-<head><title>CS410 Server</title></head>
-<body>
-<div style="text-align: center">
-<H1 align="center">CS410 Server</H1>
-<img src="histogram.jpg" alt="histogram" display="block" margin-left="auto" margin-right="auto" width="50%"/>
-</div>
-</body>
-</html>''')
+#!/bin/sh
+# test.cgi -- a simple test
+printf "Content-type: text/plain\n\nThis is a test!\n"

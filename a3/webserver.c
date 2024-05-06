@@ -58,7 +58,7 @@ void exec_histogram_script(const char *requestCmd, int new_socket) {
     char *arg = strtok(NULL, "%20");
     strcat(command, arg);
     FILE *output = popen(command, "r");
-    if (output == NULL || strtok(NULL, "%20") == NULL) {
+    if (output == NULL || arg == NULL) {
         const char *response = "HTTP/1.1 404 Not Found\nContent-Type: text/html\n\n<h1>404 Not Found</h1>";
         send_response(new_socket, response, strlen(response));
     } else {
@@ -159,7 +159,7 @@ int main(int argc, char *argv[]) {
                             struct stat file_stat;
                             fstat(file_fd, &file_stat);
                             off_t file_size = file_stat.st_size;
-                            // generates response by opening file and reading through the file data
+                            // generates response by opening file and reading through the file
                             char *response = (char *)malloc((BUFFER_SIZE + file_size) * sizeof(char));
                             if (response == NULL) {
                                 perror("malloc failed");
