@@ -1,5 +1,4 @@
 #!/usr/bin/python3
-import base64
 import os
 import sys
 from pathlib import Path
@@ -16,14 +15,18 @@ def countFileTypes(directory):
         'character': 0
     }
     for root, dirs, files in os.walk(directory):
-        fileTypes['directory'] += len(dirs)
-        for f in files:
-            osPath = os.path.join(root, f)
+        for d in dirs:
+            osPath = os.path.join(root, d)
             pathPath = Path(osPath)
             if pathPath.is_symlink():
                 fileTypes['link'] += 1
             elif os.path.isdir(osPath):
                 fileTypes['directory'] += 1
+        for f in files:
+            osPath = os.path.join(root, f)
+            pathPath = Path(osPath)
+            if pathPath.is_symlink():
+                fileTypes['link'] += 1
             elif pathPath.is_fifo():
                 fileTypes['fifo'] += 1
             elif pathPath.is_socket():
@@ -59,7 +62,7 @@ if __name__ == "__main__":
     <head><title>CS410 Server</title></head>
     <body>
     <div style="text-align: center">
-    <H1 align="center">CS410 Server</H1>
+    <font size="16" color="red" display ="block">CS410 Server</br></font>
     <img src="histogram.jpg" alt="histogram" display="block" margin-left="auto" margin-right="auto" width="50%"/>
     </div>
     </body>

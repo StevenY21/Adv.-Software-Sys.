@@ -1,7 +1,6 @@
 #Assignment 3  
 ##Setup  
 What you will need:  
--audioanalyze.cgi, my-histogram.cgi, and webserver.c
 -Just run make in terminal
 -Maybe install the python libraries that are mentioned in audioanalyze.cgi and my-histogram.cgi
 ##Requests  
@@ -11,8 +10,12 @@ The webserver can work for the following requests:
 -localhost:port-number/request.cgi  
 -localhost:port-number/my-histogram directory  
 Yes there's a space in the my-histogram request. 
-Note: directory names that have / might be a little funky. Doing ./.. would mess up the url, but doing something like dir1/dir2 would not generate the histogram on the browser, but would generate the jpg in the folder. Just stick with directories that can immediately found in the directory the webserver is in.
+Note: my-histogram only works with the director the the server's in or the immediate directories inside that directory. 
+Doing dir/dir on valid directories would generate the jpg, but wont send it in the response as the / messes with the url.
 
-##Please look into directory issue mentioned above, as well as help me find a more graceful way to exit when running my-histogram but providing a directory TY
+##For hardware  
+Plug in the hardware to serial after starting the server, then afterwards immediately give the audioanalyze.cgi request.  
+The program will finish processing after you've been silent for 5 seconds  
+Makesure you have the sketch running so that it does what it's supposed to immediately upon being plugged in  
 
 #ENJOY!

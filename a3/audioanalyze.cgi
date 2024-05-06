@@ -1,5 +1,4 @@
 #!/usr/bin/python3
-
 import pretty_midi
 import serial
 import time
@@ -10,6 +9,8 @@ midi_file = pretty_midi.PrettyMIDI()
 # Create a piano instrument
 piano_program = pretty_midi.instrument_name_to_program('Acoustic Grand Piano')
 piano = pretty_midi.Instrument(program=piano_program)
+# Add the piano instrument to the MIDI file
+midi_file.instruments.append(piano)
 
 # Initialize the serial connection
 ser = serial.Serial('/dev/ttyS6', baudrate=9600, timeout=1)
@@ -25,7 +26,9 @@ try:
         try:
             # Read a line from serial
             line = ser.readline().decode().strip()
+            
             if line:
+                print("Received: ", line)
                 # Reset the no note timer since a note has been sensed
                 last_note_time_ms = time.time() * 1000
 
@@ -45,6 +48,7 @@ try:
                     # This is realtime pitch detection, so we'll have to eliminate
                     # the first note due to limitations. It won't be too noticeable
                     duration = 0.0
+                    previous_timestamp_ms = timestamp_ms
 
                 # Create a note with the extracted pitch, start time, and calculated duration
                 note = pretty_midi.Note(velocity=100, pitch=pitch, start=note_start, end=note_start + duration)
@@ -63,9 +67,6 @@ try:
 # Close the serial port if interrupted so we can end execution
 except KeyboardInterrupt:
     ser.close()
-
-# Add the piano instrument to the MIDI file
-midi_file.instruments.append(piano)
 
 # Save the MIDI file
 midi_file.write('output_file.mid')
