@@ -117,6 +117,10 @@ int main(int argc, char *argv[]) {
 
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
+    if (argc == 1) {
+        perror("no port specified");
+        exit(EXIT_FAILURE);
+    }
     int port = atoi(argv[1]);
     address.sin_port = htons(port);
 

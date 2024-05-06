@@ -3,6 +3,7 @@
 What you will need:  
 -Just run make in terminal
 -Maybe install the python libraries that are mentioned in audioanalyze.cgi and my-histogram.cgi
+-run ./webserver port-number
 ##Requests  
 The webserver can work for the following requests:  
 -localhost:port-number/request.jpg  
