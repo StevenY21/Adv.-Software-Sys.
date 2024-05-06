@@ -43,6 +43,7 @@ try:
                 # Calculate duration based on the timestamp of the current note and the previous note
                 if previous_timestamp_ms is not None:
                     duration = (timestamp_ms - previous_timestamp_ms) / 1000.0
+                    print("Start Time: {:.3f} s, Duration: {:.3f} s".format(note_start, duration))
                     previous_timestamp_ms = timestamp_ms
                 else:
                     # This is realtime pitch detection, so we'll have to eliminate

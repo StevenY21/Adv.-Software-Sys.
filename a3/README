@@ -19,4 +19,7 @@ Plug in the hardware to serial after starting the server, then afterwards immedi
 The program will finish processing after you've been silent for 5 seconds  
 Makesure you have the sketch running so that it does what it's supposed to immediately upon being plugged in  
 
+##Citation:
+Used https://dev.to/jeffreythecoder/how-i-built-a-simple-http-server-from-scratch-using-c-739 for help with implementation
+
 #ENJOY!

@@ -155,6 +155,7 @@ int main(int argc, char *argv[]) {
         } else {
             // getting a non-empty request
             // using regex to check for the request
+            // regex src: https://dev.to/jeffreythecoder/how-i-built-a-simple-http-server-from-scratch-using-c-739
             regex_t regex;
             regcomp(&regex, "^GET /([^ ]*) HTTP/1", REG_EXTENDED);
             regmatch_t matches[2];
@@ -203,6 +204,7 @@ int main(int argc, char *argv[]) {
                             } else {
                                 //printf("getting fstat\n");
                                 //get a proper file size from file_stat for malloc
+                                // file reading src: // regex src: https://dev.to/jeffreythecoder/how-i-built-a-simple-http-server-from-scratch-using-c-739
                                 struct stat file_stat;
                                 fstat(file_fd, &file_stat);
                                 off_t file_size = file_stat.st_size;
