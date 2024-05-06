@@ -1,13 +1,16 @@
-# Assignment 3  
-## Setup  
-Just run make in terminal
-## Requests  
+#Assignment 3  
+##Setup  
+What you will need:  
+-audioanalyze.cgi, my-histogram.cgi, and webserver.c
+-Just run make in terminal
+-Maybe install the python libraries that are mentioned in audioanalyze.cgi and my-histogram.cgi
+##Requests  
 The webserver can work for the following requests:  
-localhost:port-number/request.jpg  
-localhost:port-number/request.gif  
-localhost:port-number/request.cgi  
-localhost:port-number/my-histogram directory  
+-localhost:port-number/request.jpg  
+-localhost:port-number/request.gif  
+-localhost:port-number/request.cgi  
+-localhost:port-number/my-histogram directory  
+Yes there's a space in the my-histogram request. 
+Note: directory names that have / might be a little funky. Doing ./.. would mess up the url, but doing something like dir1/dir2 would not generate the histogram on the browser, but would generate the jpg in the folder. Just stick with directories that can immediately found in the directory the webserver is in.
 
-## my-histogram note
-You might need to install the python library matplotlib, and maybe the other imported libraries as well for it to work
-ENJOY!
+#ENJOY!
