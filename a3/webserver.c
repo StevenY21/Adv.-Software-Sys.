@@ -177,12 +177,12 @@ int main(int argc, char *argv[]) {
                         }
                     }
                 } else {
-                    const char *response = "HTTP/1.1 400 Bad Request\nContent-Type: text/html\n\n<h1>400 Bad Request</h1>";
+                    const char *response = "HTTP/1.1 404 Not Found\nContent-Type: text/html\n\n<h1>404 Not Found :)</h1>";
                     send_response(new_socket, response, strlen(response));
                 }
             }
         } else {
-                const char *response = "HTTP/1.1 400 Bad Request\nContent-Type: text/html\n\n<h1>400 Bad Request</h1>";
+                const char *response = "HTTP/1.1 404 Not Found\nContent-Type: text/html\n\n<h1>404 Not Found</h1>";
                 send_response(new_socket, response, strlen(response));
         }
 
